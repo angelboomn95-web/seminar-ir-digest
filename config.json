@@ -1,0 +1,213 @@
+{
+  "generatedAt": "2026-11-12T06:30:00Z",
+  "rules": {
+    "include": [
+      "VC",
+      "벤처투자",
+      "IPO",
+      "세컨더리",
+      "IR",
+      "데모데이",
+      "기업설명회",
+      "산업 동향",
+      "AI",
+      "딥테크",
+      "세미나",
+      "포럼"
+    ],
+    "exclude": [
+      "채용",
+      "채용박람회",
+      "잡페어",
+      "지원사업 설명회",
+      "모집 설명회",
+      "창업교육",
+      "멘토링  미디어 임시값"
+    ],
+    "regions": [
+      "서울",
+      "온라인"
+    ],
+    "weeks": 4,
+    "send": "월 09:00"
+  },
+  "sites": [
+    {
+      "name": "증권사 리서치 세미나",
+      "url": "https://www.kofia.or.kr",
+      "category": "증권사·리서치",
+      "status": "후보",
+      "method": "수동 확인",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "컴업(COMEUP)",
+      "url": "https://www.comeup.org",
+      "category": "창업지원기관",
+      "status": "후보",
+      "method": "수동 확인",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "디캠프 프로그램",
+      "url": "https://dcamp.kr/program/investment",
+      "category": "창업지원기관",
+      "status": "후보",
+      "method": "HTML 목록",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "이벤터스",
+      "url": "https://event-us.kr/search",
+      "category": "행사 플랫폼",
+      "status": "후보",
+      "method": "검색 결과(키워드)",
+      "include": [
+        "VC",
+        "투자",
+        "IR",
+        "데모데이"
+      ],
+      "exclude": []
+    },
+    {
+      "name": "페스타",
+      "url": "https://festa.io/events",
+      "category": "행사 플랫폼",
+      "status": "후보",
+      "method": "검색 결과(키워드)",
+      "include": [
+        "AI",
+        "투자",
+        "딥테크"
+      ],
+      "exclude": [
+        "밋업",
+        "스터디"
+      ]
+    },
+    {
+      "name": "한국엔젤투자협회",
+      "url": "https://www.kban.or.kr",
+      "category": "VC·투자 유관기관",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "한국성장금융",
+      "url": "https://www.kgrowth.or.kr",
+      "category": "VC·투자 유관기관",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": [
+        "출자사업 공고"
+      ]
+    },
+    {
+      "name": "KIND 기업설명회(IR) 일정",
+      "url": "https://kind.krx.co.kr",
+      "category": "IR·공시",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "한국IR협의회",
+      "url": "https://www.kirs.or.kr",
+      "category": "IR·공시",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "한국벤처캐피탈협회",
+      "url": "https://www.kvca.or.kr",
+      "category": "VC·투자 유관기관",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": [
+        "회원사 공지",
+        "입찰"
+      ]
+    },
+    {
+      "name": "한국벤처투자",
+      "url": "https://www.kvic.or.kr",
+      "category": "VC·투자 유관기관",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": [
+        "출자사업 공고",
+        "채용"
+      ]
+    },
+    {
+      "name": "넥스트라운드(KDB)",
+      "url": "https://www.nextround.kr",
+      "category": "VC·투자 유관기관",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "온오프믹스",
+      "url": "https://onoffmix.com/event",
+      "category": "행사 플랫폼",
+      "status": "후보",
+      "method": "검색 결과(키워드)",
+      "include": [
+        "VC",
+        "투자",
+        "IR",
+        "데모데이"
+      ],
+      "exclude": [
+        "강의",
+        "클래스",
+        "스터디"
+      ]
+    },
+    {
+      "name": "플래텀",
+      "url": "https://platum.kr",
+      "category": "미디어",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "스타트업얼라이언스",
+      "url": "https://startupall.kr",
+      "category": "창업지원기관",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [],
+      "exclude": []
+    },
+    {
+      "name": "벤처스퀘어",
+      "url": "https://www.venturesquare.net",
+      "category": "미디어",
+      "status": "후보",
+      "method": "확인 필요",
+      "include": [
+        "행사",
+        "세미나",
+        "데모데이"
+      ],
+      "exclude": []
+    }
+  ]
+}

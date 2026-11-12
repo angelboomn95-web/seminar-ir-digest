@@ -1,0 +1,728 @@
+<title>세미나·IR 수집 소스</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 한 줄 헤더 → 화면 탭(주간 일정 / 수집 소스·규칙) → 각 화면 패널. 운영 도구라 정보 밀도 우선. */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --line:#dde1e7; --fg:#1b2230; --muted:#5d6676;
+  --accent:#1f5fd1; --accent-weak:#e6eefc;
+  --ok:#1d7a4a; --ok-weak:#e3f3ea; --warn:#9a6200; --warn-weak:#fbf0db; --off:#8a93a3; --off-weak:#eef0f3; --bad:#b4322b;
+  --font-body:"IBM Plex Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a2029; --line:#2c3440; --fg:#e4e8ef; --muted:#9aa4b4;
+  --accent:#7aa7ff; --accent-weak:#1e2b44; --ok:#5fcf93; --ok-weak:#16302a; --warn:#e8b45a; --warn-weak:#352a14; --off:#7d8696; --off-weak:#232a34; --bad:#ff7a70; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a2029; --line:#2c3440; --fg:#e4e8ef; --muted:#9aa4b4;
+  --accent:#7aa7ff; --accent-weak:#1e2b44; --ok:#5fcf93; --ok-weak:#16302a; --warn:#e8b45a; --warn-weak:#352a14; --off:#7d8696; --off-weak:#232a34; --bad:#ff7a70; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
+.view{display:grid;gap:22px;min-width:0}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-size:22px;margin:0;font-weight:700;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:68ch}
+.eyebrow{font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;font-weight:600}
+.status{font-size:12px;color:var(--muted)}
+.status.err{color:var(--bad)}
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs a{padding:9px 14px;color:var(--muted);text-decoration:none;font-weight:600;font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+nav.tabs a[aria-current="page"]{color:var(--accent);border-bottom-color:var(--accent)}
+nav.tabs a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:14px;min-width:0}
+.panel-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+h2{font-size:15px;margin:0;font-weight:600}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+label.f{display:grid;gap:5px;font-size:12px;color:var(--muted);font-weight:500}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+textarea{resize:vertical;min-height:62px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hint{font-size:11.5px;color:var(--muted);font-weight:400}
+button{font:inherit;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 12px;cursor:pointer;font-weight:500}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 8px}
+button.ghost:hover{color:var(--accent)}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12.5px;background:var(--surface);cursor:pointer;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--accent-weak);border-color:var(--accent);color:var(--accent);font-weight:600}
+.count{font-family:var(--font-mono);font-variant-numeric:tabular-nums;margin-left:4px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:13px}
+table.compact{min-width:560px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;color:var(--muted);font-weight:600;background:var(--bg);letter-spacing:.02em;white-space:nowrap}
+td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+tr:last-child td{border-bottom:0}
+td.name strong{display:block;font-weight:600}
+td.name a{color:var(--accent);font-family:var(--font-mono);font-size:11.5px;word-break:break-all;text-decoration:none}
+td.name a:hover{text-decoration:underline}
+.pill{display:inline-block;border-radius:4px;padding:1px 8px;font-size:12px;font-weight:600;white-space:nowrap}
+.s-후보{background:var(--warn-weak);color:var(--warn)}
+.s-확정{background:var(--ok-weak);color:var(--ok)}
+.s-제외{background:var(--off-weak);color:var(--off)}
+.kw{display:flex;flex-wrap:wrap;gap:4px}
+.kw span{font-size:11.5px;border-radius:4px;padding:0 6px;background:var(--bg);border:1px solid var(--line)}
+.kw span.minus{color:var(--bad)}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);padding:0;width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 48px)}
+dialog::backdrop{background:rgba(10,14,20,.45)}
+.dlg{display:grid;gap:14px;padding:20px;overflow:auto;max-height:calc(100vh - 48px)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.grid2{grid-template-columns:1fr}}
+.foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+pre.json{font-family:var(--font-mono);font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto;max-height:340px;margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20}
+@media (prefers-reduced-motion:no-preference){.toast{transition:opacity .2s}}
+
+/* 주간 일정 화면 */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:0;padding:0;list-style:none;counter-reset:st}
+.steps li{counter-increment:st;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start;font-size:12.5px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.steps li::before{content:counter(st);grid-row:span 2;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:600 12px var(--font-mono);background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.steps li.done::before{background:var(--ok-weak);border-color:var(--ok);color:var(--ok);content:"✓"}
+.steps li.wait::before{background:var(--off-weak);color:var(--off)}
+.steps b{font-weight:600}
+.steps code{font-family:var(--font-mono);font-size:11.5px;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.runbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.runbar select{width:auto;min-width:220px}
+.runmeta{font-size:12.5px;color:var(--muted)}
+.runmeta strong{color:var(--fg);font-variant-numeric:tabular-nums}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:900px){.split{grid-template-columns:1fr}}
+.evlist{display:grid;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.wk{font-size:12px;font-weight:600;color:var(--muted);background:var(--bg);padding:6px 12px;border-bottom:1px solid var(--line);letter-spacing:.02em}
+.ev{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface)}
+.ev:last-child{border-bottom:0}
+.ev.off{background:var(--bg)}
+.ev.off .ev-t,.ev.off .ev-m{color:var(--off);text-decoration:line-through}
+.ev input[type=checkbox]{width:16px;height:16px;margin-top:3px;accent-color:var(--accent)}
+.ev-when{font:600 12px var(--font-mono);color:var(--accent);font-variant-numeric:tabular-nums}
+.ev-t{font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.ev-m{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.ev-a{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;margin-top:2px}
+.ev-a a{color:var(--accent);text-decoration:none}
+.ev-a a:hover{text-decoration:underline}
+.preview{border:1px solid var(--line);border-radius:8px;background:#ffffff;width:100%;height:760px;display:block}
+.notice{border:1px dashed var(--line);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--muted);display:grid;gap:8px;background:var(--bg)}
+.notice strong{color:var(--fg)}
+details.rep summary{cursor:pointer;font-weight:600;font-size:13px}
+details.rep[open] summary{margin-bottom:10px}
+.err-t{color:var(--bad)}
+.dropzone{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);font-size:12.5px}
+.dropzone.over{border-color:var(--accent);background:var(--accent-weak);color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">투자전략팀 · 세미나/IR 일정 자동화</div>
+      <h1>세미나·IR 수집 소스</h1>
+      <p class="sub">수집한 행사를 확인해 주간 메일과 팀 캘린더로 보내는 곳입니다. 어떤 사이트를 어떤 규칙으로 모을지는 '수집 소스·규칙' 탭에서 정합니다.</p>
+    </div>
+    <div class="status" id="status">불러오는 중…</div>
+  </header>
+
+  <nav class="tabs" aria-label="화면">
+    <a href="#weekly" id="tab-weekly">주간 일정</a>
+    <a href="#sources" id="tab-sources">수집 소스·규칙</a>
+  </nav>
+
+  <!-- ============================== 주간 일정 ============================== -->
+  <div class="view" id="view-weekly">
+    <section class="panel" aria-labelledby="run-h">
+      <div class="panel-h">
+        <h2 id="run-h">이번 주 진행</h2>
+        <div class="runbar">
+          <label class="small muted" for="run-sel">수집 회차</label>
+          <select id="run-sel" disabled><option>올린 결과 없음</option></select>
+        </div>
+      </div>
+      <ol class="steps" id="steps">
+        <li id="st1"><b>PC에서 수집</b><span class="muted">수집기 폴더에서 <code>python collect.py</code> 실행</span></li>
+        <li id="st2"><b>결과 파일 올리기</b><span class="muted"><code>out/upload_날짜.json</code>을 아래에 끌어 놓기</span></li>
+        <li id="st3"><b>행사 확인</b><span class="muted">메일에서 뺄 행사는 체크 해제</span></li>
+        <li id="st4" class="wait"><b>메일·캘린더</b><span class="muted">발송과 캘린더 등록</span></li>
+      </ol>
+      <div class="dropzone" id="drop">
+        <input type="file" id="up-file" accept=".json,application/json" hidden>
+        수집 결과 파일을 여기에 끌어 놓거나 <button type="button" id="up-btn">파일 선택</button>
+      </div>
+      <div class="runmeta" id="run-meta"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="send-h" id="send-panel">
+      <div class="panel-h">
+        <h2 id="send-h">메일·캘린더</h2>
+        <div class="btns">
+          <button id="copy-mail" disabled>메일 본문 복사</button>
+          <button id="save-mail" disabled>메일 HTML 저장</button>
+        </div>
+      </div>
+      <div class="notice">
+        <div><strong>바로 발송·등록은 구글 연결 후 열립니다.</strong> claude.ai 설정에서 Gmail과 Google Calendar를 연결하면 이 자리에 '나에게 발송'과 '세미나·IR 캘린더에 등록' 버튼이 생깁니다.</div>
+        <div>그 전까지는 <b>메일 본문 복사</b> 후 Gmail 새 메일에 붙여 넣어 보내면 서식이 그대로 유지됩니다. 캘린더는 각 행사의 '캘린더에 추가' 링크나 수집기 폴더의 <code style="font-family:var(--font-mono)">out/events_날짜.ics</code>로 넣을 수 있습니다.</div>
+      </div>
+    </section>
+
+    <div class="split">
+      <section class="panel" aria-labelledby="ev-h">
+        <div class="panel-h">
+          <h2 id="ev-h">행사 목록</h2>
+          <span class="small muted" id="ev-count"></span>
+        </div>
+        <div id="ev-list"><div class="empty">아직 올린 수집 결과가 없습니다. 위의 1~2단계를 진행하면 행사가 날짜순으로 나타납니다.</div></div>
+      </section>
+      <section class="panel" aria-labelledby="pv-h">
+        <div class="panel-h">
+          <h2 id="pv-h">메일 미리보기</h2>
+          <span class="small muted">체크된 행사만 들어갑니다</span>
+        </div>
+        <iframe class="preview" id="preview" title="주간 메일 미리보기" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe>
+      </section>
+    </div>
+
+    <section class="panel">
+      <details class="rep" id="rep">
+        <summary>사이트별 수집 결과</summary>
+        <div class="tablewrap"><table class="compact"><thead><tr><th>사이트</th><th style="text-align:right">수집</th><th style="text-align:right">통과</th><th>빠진 이유</th><th>상태</th></tr></thead>
+          <tbody id="rep-rows"><tr><td colspan="5" class="empty">수집 결과를 올리면 표시됩니다.</td></tr></tbody></table></div>
+      </details>
+    </section>
+  </div>
+
+  <!-- ============================== 수집 소스·규칙 ============================== -->
+  <div class="view" id="view-sources" hidden>
+  <section class="panel" aria-labelledby="rules-h">
+    <div class="panel-h">
+      <h2 id="rules-h">공통 필터 규칙</h2>
+      <div class="btns">
+        <button id="rules-save" class="primary" disabled>규칙 저장</button>
+      </div>
+    </div>
+    <div class="rules">
+      <div class="f" style="display:grid;gap:5px">
+        <label class="f" for="r-include">포함 키워드 <span class="hint">쉼표나 줄바꿈으로 구분 · 수집된 행사 공고에 적용</span></label>
+        <textarea id="r-include"></textarea>
+        <div class="kw" id="r-include-pv" aria-label="인식된 포함 키워드"></div>
+      </div>
+      <div class="f" style="display:grid;gap:5px">
+        <label class="f" for="r-exclude">제외 키워드 <span class="hint">쉼표나 줄바꿈으로 구분 · 행사 공고와 사이트(이름·분류·메모)에 적용</span></label>
+        <textarea id="r-exclude"></textarea>
+        <div class="kw" id="r-exclude-pv" aria-label="인식된 제외 키워드"></div>
+      </div>
+      <label class="f">지역 <span class="hint">쉼표로 구분</span>
+        <input id="r-region"></label>
+      <div class="grid2">
+        <label class="f">메일에 담을 기간(주)
+          <select id="r-weeks"><option value="2">2주</option><option value="3">3주</option><option value="4">4주</option></select></label>
+        <label class="f">발송
+          <input id="r-send" placeholder="월 09:00"></label>
+      </div>
+    </div>
+    <div class="f" style="display:grid;gap:6px">
+      <span class="small muted" style="font-weight:500">제외할 분류 <span class="hint">· 규칙 저장 시 이 분류의 사이트와, 사이트명·분류·메모에 제외 키워드가 있는 사이트를 자동으로 '제외'로 바꿉니다. '확정'이거나 직접 상태를 정한 사이트는 그대로 둡니다.</span></span>
+      <div class="chips" id="r-cats" role="group" aria-label="제외할 분류"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="sites-h">
+    <div class="panel-h">
+      <h2 id="sites-h">수집 사이트</h2>
+      <div class="btns">
+        <button id="export">수집기 설정(config.json)</button>
+        <button id="add" class="primary">사이트 추가</button>
+      </div>
+    </div>
+    <div class="chips" id="filters" role="group" aria-label="상태 필터"></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th style="width:22%">사이트</th><th>분류</th><th>상태</th><th>수집 방식</th>
+          <th style="width:20%">사이트별 규칙</th><th style="width:22%">메모</th><th></th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="7" class="empty">사이트 목록을 불러오는 중입니다.</td></tr></tbody>
+      </table>
+    </div>
+    <p class="small muted">사이트별 규칙은 공통 규칙에 더해 적용됩니다. 예: 온오프믹스처럼 행사가 많은 곳은 포함 키워드를 좁게, 협회 공지처럼 행사 외 글이 섞인 곳은 제외 키워드를 추가. 규칙을 바꾼 뒤에는 '수집기 설정'을 저장해 수집기 폴더의 config.json을 바꿔 주세요.</p>
+  </section>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <form class="dlg" id="form">
+    <h2 id="dlg-h">사이트 추가</h2>
+    <div class="grid2">
+      <label class="f">사이트명 <input id="f-name" required></label>
+      <label class="f">분류
+        <select id="f-cat">
+          <option>VC·투자 유관기관</option><option>행사 플랫폼</option><option>증권사·리서치</option><option>IR·공시</option><option>창업지원기관</option><option>미디어</option><option>기타</option>
+        </select></label>
+    </div>
+    <label class="f">행사 목록 URL <span class="hint">공고가 실제로 올라오는 목록 페이지 주소</span><input id="f-url" type="url" required placeholder="https://"></label>
+    <div class="grid2">
+      <label class="f">상태
+        <select id="f-status"><option>후보</option><option>확정</option><option>제외</option></select></label>
+      <label class="f">수집 방식
+        <select id="f-method"><option>확인 필요</option><option>HTML 목록</option><option>RSS</option><option>검색 결과(키워드)</option><option>API</option><option>수동 확인</option></select></label>
+    </div>
+    <label class="f">사이트별 포함 키워드 <span class="hint">쉼표 구분 · 비우면 공통 규칙만</span><input id="f-inc"></label>
+    <label class="f">사이트별 제외 키워드 <input id="f-exc"></label>
+    <label class="f">메모 <textarea id="f-note"></textarea></label>
+    <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="f-auto" style="width:auto"> 공통 규칙으로 상태 자동 분류 <span class="hint">· 상태를 직접 바꾸면 자동으로 꺼집니다</span></label>
+    <div class="foot">
+      <button type="button" id="f-del" class="danger">삭제</button>
+      <div class="btns">
+        <button type="button" id="f-cancel">취소</button>
+        <button type="submit" class="primary" id="f-save">저장</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="exp">
+  <div class="dlg">
+    <h2>수집기 설정 (config.json)</h2>
+    <p class="small muted">상태가 '확정'인 사이트와 공통 규칙입니다. 확정이 없으면 후보까지 포함합니다. 저장한 파일로 수집기 폴더의 config.json을 바꾸면 다음 수집부터 적용됩니다.</p>
+    <pre class="json" id="exp-pre"></pre>
+    <div class="foot"><span></span><div class="btns"><button id="exp-copy">복사</button><button id="exp-save" hidden>config.json 저장</button><button id="exp-close" class="primary">닫기</button></div></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const STATUSES=["전체","후보","확정","제외"];
+  let db=null, sites=[], rules=null, filter="전체", editingId=null, canWrite=true;
+  const splitKw=s=>(s||"").split(/[,，\n]/).map(x=>x.trim().replace(/\s+/g," ")).filter(Boolean);
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const safeUrl=u=>/^https?:\/\//i.test(String(u||""))?String(u):"#";
+
+  function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600);}
+  function setStatus(msg,err){const s=$("status");s.textContent=msg;s.classList.toggle("err",!!err);}
+
+  /* ---------- 화면 탭 ---------- */
+  function route(){
+    const v=location.hash==="#sources"?"sources":"weekly";
+    $("view-weekly").hidden=v!=="weekly"; $("view-sources").hidden=v!=="sources";
+    $("tab-weekly").setAttribute("aria-current",v==="weekly"?"page":"false");
+    $("tab-sources").setAttribute("aria-current",v==="sources"?"page":"false");
+  }
+  addEventListener("hashchange",route); route();
+
+  /* ================= 수집 소스·규칙 ================= */
+  function renderFilters(){
+    const c={전체:sites.length};STATUSES.slice(1).forEach(s=>c[s]=sites.filter(x=>x.status===s).length);
+    $("filters").innerHTML=STATUSES.map(s=>`<button class="chip" aria-pressed="${s===filter}" data-f="${s}">${s}<span class="count">${c[s]}</span></button>`).join("");
+  }
+  function renderRows(){
+    const list=sites.filter(s=>filter==="전체"||s.status===filter)
+      .sort((a,b)=>(STATUSES.indexOf(a.status)-STATUSES.indexOf(b.status))||String(a.category).localeCompare(b.category)||String(a.name).localeCompare(b.name));
+    if(!list.length){$("rows").innerHTML=`<tr><td colspan="7" class="empty">${sites.length?"이 상태의 사이트가 없습니다.":"아직 등록된 사이트가 없습니다. '사이트 추가'로 첫 사이트를 넣어 주세요."}</td></tr>`;return;}
+    $("rows").innerHTML=list.map(s=>{
+      const inc=(s.include||[]).map(k=>`<span>+${esc(k)}</span>`).join("");
+      const exc=(s.exclude||[]).map(k=>`<span class="minus">−${esc(k)}</span>`).join("");
+      return `<tr>
+        <td class="name"><strong>${esc(s.name)}</strong><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.url)}</a></td>
+        <td>${esc(s.category)}</td>
+        <td><span class="pill s-${esc(s.status)}">${esc(s.status)}</span>${s.statusSource==="manual"||s.status==="확정"?`<div class="small muted">직접 지정</div>`:`<div class="small muted">자동</div>`}${s.autoReason&&s.statusSource!=="manual"&&s.status==="제외"?`<div class="small muted">${esc(s.autoReason)}</div>`:""}</td>
+        <td>${esc(s.method)}</td>
+        <td>${inc||exc?`<div class="kw">${inc}${exc}</div>`:`<span class="muted small">공통 규칙만</span>`}</td>
+        <td class="small">${esc(s.note)}</td>
+        <td>${canWrite?`<button class="ghost" data-edit="${esc(s.id)}">편집</button>`:""}</td></tr>`;
+    }).join("");
+  }
+  let rulesDirty=false, lastSavedAt="";
+  function renderRules(){
+    if(!rules||rulesDirty) return;
+    $("r-include").value=(rules.include||[]).join(", ");
+    $("r-exclude").value=(rules.exclude||[]).join(", ");
+    $("r-region").value=(rules.regions||[]).join(", ");
+    $("r-weeks").value=String(rules.weeks||4);
+    $("r-send").value=rules.send||"";
+    exCats=new Set(rules.excludeCategories||[]);renderCats();renderKwPreview();
+    $("rules-save").disabled=true;
+  }
+  const CATS=["VC·투자 유관기관","행사 플랫폼","증권사·리서치","IR·공시","창업지원기관","미디어","기타"];
+  let exCats=new Set();
+  function renderCats(){$("r-cats").innerHTML=CATS.map(c=>`<button type="button" class="chip" aria-pressed="${exCats.has(c)}" data-c="${c}">${c}</button>`).join("");}
+  $("r-cats").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b||!canWrite)return;const c=b.dataset.c;exCats.has(c)?exCats.delete(c):exCats.add(c);renderCats();rulesDirty=true;$("rules-save").disabled=!db;});
+  function classify(site,r){
+    if(site.status==="확정"||site.statusSource==="manual") return null;
+    if((r.excludeCategories||[]).includes(site.category)) return {status:"제외",autoReason:`제외 분류: ${site.category}`};
+    const text=`${site.name||""} ${site.category||""} ${site.note||""}`.toLowerCase();
+    const hit=(r.exclude||[]).find(k=>text.includes(k.toLowerCase()));
+    if(hit) return {status:"제외",autoReason:`제외 키워드: ${hit}`};
+    return {status:"후보",autoReason:""};
+  }
+  function render(){renderFilters();renderRows();}
+
+  $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-f]");if(!b)return;filter=b.dataset.f;render();});
+  ["r-include","r-exclude","r-region","r-weeks","r-send"].forEach(id=>$(id).addEventListener("input",()=>{rulesDirty=true;$("rules-save").disabled=!db||!canWrite;renderKwPreview();}));
+  function renderKwPreview(){
+    const inc=splitKw($("r-include").value), exc=splitKw($("r-exclude").value);
+    $("r-include-pv").innerHTML=inc.map(k=>`<span>+${esc(k)}</span>`).join("")+`<span class="muted" style="border:0">${inc.length}개</span>`;
+    $("r-exclude-pv").innerHTML=exc.map(k=>`<span class="minus">−${esc(k)}</span>`).join("")+`<span class="muted" style="border:0">${exc.length}개</span>`;
+  }
+
+  $("rules-save").addEventListener("click",async()=>{
+    if(!db) return;
+    const body={include:splitKw($("r-include").value),exclude:splitKw($("r-exclude").value),regions:splitKw($("r-region").value),weeks:Number($("r-weeks").value),send:$("r-send").value.trim(),excludeCategories:[...exCats],updatedAt:new Date().toISOString()};
+    $("rules-save").disabled=true;
+    try{
+      await db.doc("config/rules").set(body);
+      lastSavedAt=body.updatedAt; rules=body; rulesDirty=false; renderRules();
+      let changed=0;
+      for(const s of sites.slice()){
+        const c=classify(s,body);
+        if(!c) continue;
+        if(c.status===s.status&&(c.autoReason||"")===(s.autoReason||"")) continue;
+        await db.collection("sites").doc(s.id).update({status:c.status,autoReason:c.autoReason,statusSource:"auto"});
+        changed++;
+      }
+      toast(changed?`규칙을 저장하고 사이트 ${changed}곳의 상태를 바꿨습니다`:"규칙을 저장했습니다 · 상태가 바뀐 사이트는 없습니다");
+    }
+    catch(e){handleWriteErr(e);$("rules-save").disabled=false;}
+  });
+
+  function openForm(site){
+    editingId=site?site.id:null;
+    $("dlg-h").textContent=site?"사이트 편집":"사이트 추가";
+    $("f-name").value=site?.name||"";$("f-cat").value=site?.category||"VC·투자 유관기관";
+    $("f-url").value=site?.url||"";$("f-status").value=site?.status||"후보";$("f-method").value=site?.method||"확인 필요";
+    $("f-inc").value=(site?.include||[]).join(", ");$("f-exc").value=(site?.exclude||[]).join(", ");$("f-note").value=site?.note||"";
+    $("f-auto").checked=site?(site.statusSource!=="manual"&&site.status!=="확정"):true;
+    $("f-del").hidden=!site;
+    $("dlg").showModal();
+  }
+  $("f-status").addEventListener("change",()=>{$("f-auto").checked=false;});
+  $("add").addEventListener("click",()=>openForm(null));
+  $("rows").addEventListener("click",e=>{const b=e.target.closest("[data-edit]");if(!b)return;openForm(sites.find(s=>s.id===b.dataset.edit));});
+  $("f-cancel").addEventListener("click",()=>$("dlg").close());
+  let delArmed=false;
+  $("f-del").addEventListener("click",async()=>{
+    if(!delArmed){delArmed=true;$("f-del").textContent="한 번 더 누르면 삭제";setTimeout(()=>{delArmed=false;$("f-del").textContent="삭제";},3000);return;}
+    delArmed=false;$("f-del").textContent="삭제";
+    try{await db.collection("sites").doc(editingId).delete();$("dlg").close();toast("삭제했습니다");}catch(e){handleWriteErr(e);}
+  });
+  $("form").addEventListener("submit",async e=>{
+    e.preventDefault();
+    if(!db){toast("저장소에 연결되지 않아 저장할 수 없습니다");return;}
+    const body={name:$("f-name").value.trim(),category:$("f-cat").value,url:$("f-url").value.trim(),status:$("f-status").value,method:$("f-method").value,
+      include:splitKw($("f-inc").value),exclude:splitKw($("f-exc").value),note:$("f-note").value.trim(),updatedAt:new Date().toISOString(),
+      statusSource:$("f-auto").checked?"auto":"manual",autoReason:""};
+    if(body.statusSource==="auto"&&rules){const c=classify(body,rules);if(c){body.status=c.status;body.autoReason=c.autoReason;}}
+    $("f-save").disabled=true;
+    try{
+      if(editingId) await db.collection("sites").doc(editingId).set(body);
+      else await db.collection("sites").add(body);
+      $("dlg").close();toast(editingId?"수정했습니다":"추가했습니다");
+    }catch(err){handleWriteErr(err);}
+    finally{$("f-save").disabled=false;}
+  });
+
+  function exportObj(){
+    let picked=sites.filter(s=>s.status==="확정");
+    if(!picked.length) picked=sites.filter(s=>s.status!=="제외");
+    return {generatedAt:new Date().toISOString(),rules:rules?{include:rules.include,exclude:rules.exclude,regions:rules.regions,weeks:rules.weeks,send:rules.send}:null,
+      sites:picked.map(s=>({name:s.name,url:s.url,category:s.category,status:s.status,method:s.method,include:s.include||[],exclude:s.exclude||[]}))};
+  }
+  $("export").addEventListener("click",()=>{$("exp-pre").textContent=JSON.stringify(exportObj(),null,2);$("exp").showModal();});
+  $("exp-close").addEventListener("click",()=>$("exp").close());
+  $("exp-copy").addEventListener("click",()=>{
+    const txt=$("exp-pre").textContent;
+    try{navigator.clipboard.writeText(txt).then(()=>toast("복사했습니다"),selectPre);}catch(_){selectPre();}
+  });
+  $("exp-save").addEventListener("click",()=>saveFile("config.json",$("exp-pre").textContent));
+  function selectPre(){const r=document.createRange();r.selectNodeContents($("exp-pre"));const s=getSelection();s.removeAllRanges();s.addRange(r);toast("선택했습니다. Ctrl+C로 복사하세요");}
+
+  function handleWriteErr(e){
+    if(e&&e.code==="invalid_argument"){canWrite=false;applyReadOnly();toast("편집 권한이 없어 읽기 전용으로 표시합니다");}
+    else if(e&&e.code==="quota_exceeded"){toast("저장 공간이 가득 찼습니다. 오래된 수집 회차나 쓰지 않는 사이트를 지워 주세요");}
+    else toast("저장하지 못했습니다. 잠시 후 다시 시도해 주세요");
+  }
+  function applyReadOnly(){
+    $("add").hidden=!canWrite;$("rules-save").hidden=!canWrite;
+    ["r-include","r-exclude","r-region","r-weeks","r-send"].forEach(id=>$(id).disabled=!canWrite);
+    $("drop").hidden=!canWrite;
+    render(); renderWeekly();
+  }
+
+  /* ---------- 파일 저장(downloads) ---------- */
+  let downloads=null;
+  async function saveFile(filename,data){
+    if(!downloads){toast("이 화면에서는 파일 저장을 쓸 수 없습니다");return;}
+    try{await downloads.save({filename,data});toast(`${filename} 저장을 요청했습니다`);}
+    catch(e){if(e&&e.code==="declined")return; if(e&&e.code==="rate_limited"){toast("잠시 후 다시 눌러 주세요");return;} toast("파일을 저장하지 못했습니다");}
+  }
+
+  /* ================= 주간 일정 ================= */
+  const WD="일월화수목금토", WD_EN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const C={text:"#1b2230",muted:"#6b7280",line:"#e5e7eb",accent:"#1f5fd1",band:"#f3f5f8"};
+  let runs=[], runId=null;
+
+  // ISO(+09:00) → 한국 시간 구성요소. 문자열 그대로 읽어 브라우저 시간대의 영향을 받지 않게 한다.
+  function P(iso){
+    if(!iso) return null;
+    const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/); if(!m) return null;
+    const y=+m[1],mo=+m[2],d=+m[3],h=+(m[4]||0),mi=+(m[5]||0);
+    return {y,mo,d,h,mi,wd:new Date(Date.UTC(y,mo-1,d)).getUTCDay(),day:Date.UTC(y,mo-1,d)/864e5,ms:Date.parse(iso)};
+  }
+  const md=p=>`${p.mo}.${p.d} (${WD[p.wd]})`;
+  const pad=n=>String(n).padStart(2,"0");
+  const ymd=p=>`${p.y}${pad(p.mo)}${pad(p.d)}`;
+  const utc=ms=>new Date(ms).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+  function span(ev){
+    const s=P(ev.start);
+    if(ev.has_time){
+      let e=P(ev.end);
+      const endMs=(!e||e.ms<=s.ms||e.day!==s.day)?s.ms+2*36e5:e.ms;
+      return {s,allDay:false,startMs:s.ms,endMs};
+    }
+    return {s,allDay:true};
+  }
+  function describe(ev){
+    const place=ev.online?"온라인":(ev.place||"장소 확인 필요");
+    const L=[ev.summary||"",`주최: ${ev.host||ev.source}`,`장소: ${place}`,`비용: ${ev.price||"확인 필요"}`];
+    const dl=P(ev.deadline); if(dl) L.push(`신청 마감: ${dl.y}-${pad(dl.mo)}-${pad(dl.d)} ${pad(dl.h)}:${pad(dl.mi)}`);
+    L.push(`신청 링크: ${ev.url}`,`(출처: ${ev.source})`);
+    return L.filter(Boolean).join("\n");
+  }
+  function gcalLink(ev){
+    const sp=span(ev);
+    let dates;
+    if(sp.allDay){const n=new Date(Date.UTC(sp.s.y,sp.s.mo-1,sp.s.d+1));dates=`${ymd(sp.s)}/${n.getUTCFullYear()}${pad(n.getUTCMonth()+1)}${pad(n.getUTCDate())}`;}
+    else dates=`${utc(sp.startMs)}/${utc(sp.endMs)}`;
+    const q=new URLSearchParams({action:"TEMPLATE",text:ev.title,dates,details:describe(ev),location:ev.online?"온라인":(ev.place||""),ctz:"Asia/Seoul"});
+    return "https://calendar.google.com/calendar/render?"+q.toString();
+  }
+  function whenText(ev){const s=P(ev.start);return md(s)+(ev.has_time&&(s.h||s.mi)?` ${pad(s.h)}:${pad(s.mi)}`:"");}
+  function weekIndex(ev,run){return Math.floor((P(ev.start).day-P(run.winStart).day)/7);}
+  const wkLabel=w=>w===0?"이번 주":w===1?"다음 주":`${w+1}주 차`;
+
+  function mailItem(ev){
+    const dl=P(ev.deadline), host=ev.host||ev.source, place=ev.online?"온라인":(ev.place||"장소 확인 필요"), price=ev.price||"비용 확인 필요";
+    const summary=(ev.summary||"").trim(), url=esc(safeUrl(ev.url));
+    const meta=[`📍 ${esc(place)}`,`💳 ${esc(price)}`]; if(dl) meta.push(`⏰ 신청마감 ${md(dl)}`);
+    return `
+<tr><td style="padding:14px 0;border-bottom:1px solid ${C.line};">
+  <div style="font-size:12px;color:${C.accent};font-weight:bold;">${esc(whenText(ev))}</div>
+  <div style="font-size:15px;font-weight:bold;margin:3px 0 2px;line-height:1.4;">
+    <a href="${url}" style="color:${C.text};text-decoration:none;">${esc(ev.title)}</a></div>
+  <div style="font-size:12px;color:${C.muted};">${esc(host)}${summary?" | "+esc(summary):""}</div>
+  <div style="font-size:12px;color:${C.text};margin-top:5px;">${meta.join(" &nbsp;·&nbsp; ")}
+    &nbsp; <a href="${url}" style="color:${C.accent};font-weight:bold;">신청 링크 ›</a>
+    &nbsp; <a href="${esc(gcalLink(ev))}" style="color:${C.muted};">캘린더에 추가</a></div>
+  <div style="font-size:11px;color:${C.muted};margin-top:3px;">출처: ${esc(ev.source)} · 키워드: ${esc(ev.matched||"")}</div>
+</td></tr>`;
+  }
+  function mailNotice(n){
+    const p=P(n.posted);
+    return `
+<tr><td style="padding:8px 0;border-bottom:1px solid ${C.line};font-size:13px;">
+  <a href="${esc(safeUrl(n.url))}" style="color:${C.text};text-decoration:none;font-weight:bold;">${esc(n.title)}</a>
+  <div style="font-size:11px;color:${C.muted};margin-top:2px;">${esc(n.source)}${p?" · 게시 "+md(p):""}${n.summary?" · "+esc(String(n.summary).slice(0,60)):""}</div>
+</td></tr>`;
+  }
+  function renderMail(run,events){
+    const today=P(run.today), start=P(run.winStart), end=P(run.winEnd);
+    const groups=new Map();
+    events.forEach(ev=>{const w=weekIndex(ev,run);if(!groups.has(w))groups.set(w,[]);groups.get(w).push(ev);});
+    const body=[];
+    [...groups.keys()].sort((a,b)=>a-b).forEach(w=>{
+      const items=groups.get(w);
+      body.push(`
+<tr><td style="padding:22px 0 4px;"><div style="font-size:13px;font-weight:bold;color:${C.text};
+  border-left:3px solid ${C.accent};padding-left:8px;">${wkLabel(w)} <span style="color:${C.muted};font-weight:normal;">(${items.length}건)</span></div></td></tr>`);
+      items.forEach(e=>body.push(mailItem(e)));
+    });
+    if(!events.length) body.push(`<tr><td style="padding:28px 0;color:${C.muted};">이번 기간에 조건에 맞는 행사가 없습니다.</td></tr>`);
+    const notices=run.notices||[];
+    if(notices.length){
+      body.push(`
+<tr><td style="padding:26px 0 4px;"><div style="font-size:13px;font-weight:bold;color:${C.text};
+  border-left:3px solid ${C.muted};padding-left:8px;">날짜 확인 필요 공지 <span style="color:${C.muted};font-weight:normal;">
+  (${notices.length}건 · 행사일이 첨부파일 등에만 있어 자동으로 읽지 못한 최근 공지)</span></div></td></tr>`);
+      notices.forEach(n=>body.push(mailNotice(n)));
+    }
+    const rep=run.report||[];
+    const manual=rep.filter(r=>r.error&&r.error.startsWith("수집기 없음"));
+    const failed=rep.filter(r=>r.error&&!r.error.startsWith("수집기 없음")).map(r=>r.site);
+    let foot=`수집 사이트 ${rep.filter(r=>!r.error).length}곳 자동 수집`;
+    if(failed.length) foot+=` · 오류 ${failed.join(", ")}`;
+    if(manual.length) foot+=` · 수동 확인 ${manual.length}곳`;
+    const dstr=`${today.y}.${pad(today.mo)}.${pad(today.d)}`;
+    return `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><title>주간 세미나·IR 일정</title></head>
+<body style="margin:0;background:#ffffff;font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:${C.text};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="680" cellpadding="0" cellspacing="0" style="max-width:680px;width:100%;">
+  <tr><td style="padding:0 0 12px;border-bottom:2px solid ${C.text};">
+    <table role="presentation" width="100%"><tr>
+      <td style="font-size:20px;font-weight:bold;letter-spacing:-0.5px;">디캠프</td>
+      <td align="right" style="font-size:12px;color:${C.muted};">투자전략팀 &nbsp; ${dstr} (${WD_EN[today.wd]})</td>
+    </tr></table></td></tr>
+  <tr><td style="padding:20px 0 6px;font-size:22px;font-weight:bold;">${dstr} 주간 세미나·IR 일정</td></tr>
+  <tr><td style="font-size:13px;line-height:1.7;color:${C.text};">
+    안녕하세요, 투자전략팀입니다.<br>
+    ${md(start)} ~ ${md(end)} 기간의 세미나·교육·IR/데모데이 일정 <b>${events.length}건</b>을 날짜순으로 정리했습니다.<br>
+    <span style="color:${C.muted};">세미나·IR 일정은 팀 캘린더에도 등록됩니다.(예정)</span></td></tr>
+  ${body.join("")}
+  <tr><td style="padding:24px 0 0;font-size:11px;color:${C.muted};line-height:1.6;background:#fff;">
+    <div style="background:${C.band};padding:10px 12px;">${esc(foot)}<br>
+    수집 사이트·키워드는 '세미나·IR 수집 소스' 페이지에서 조정합니다.</div>
+    <div style="padding-top:12px;">Copyright ${today.y} 디캠프, All rights reserved.</div></td></tr>
+</table></td></tr></table></body></html>`;
+  }
+
+  const curRun=()=>runs.find(r=>r.id===runId)||null;
+  const hiddenSet=run=>new Set(run&&Array.isArray(run.hidden)?run.hidden:[]);
+  const included=run=>{const h=hiddenSet(run);return (run.events||[]).filter(e=>!h.has(e.key));};
+
+  function renderRunSel(){
+    const sel=$("run-sel");
+    if(!runs.length){sel.innerHTML="<option>올린 결과 없음</option>";sel.disabled=true;return;}
+    sel.disabled=false;
+    sel.innerHTML=runs.map(r=>{const t=P(r.today);return `<option value="${esc(r.id)}"${r.id===runId?" selected":""}>${t.y}.${pad(t.mo)}.${pad(t.d)} 기준 · ${(r.events||[]).length}건</option>`;}).join("");
+  }
+  function renderWeekly(){
+    renderRunSel();
+    const run=curRun();
+    $("st1").classList.toggle("done",!!run); $("st2").classList.toggle("done",!!run); $("st3").classList.toggle("done",!!run);
+    $("copy-mail").disabled=!run; $("save-mail").disabled=!run||!downloads;
+    if(!run){
+      $("run-meta").textContent="";
+      $("ev-count").textContent="";
+      $("preview").srcdoc=`<p style="font:13px sans-serif;color:#6b7280;padding:24px;text-align:center">수집 결과를 올리면 여기에 메일 미리보기가 나옵니다.</p>`;
+      return;
+    }
+    const s=P(run.winStart), e=P(run.winEnd), h=hiddenSet(run), evs=run.events||[];
+    const up=run.uploadedAt?new Date(run.uploadedAt):null;
+    $("run-meta").innerHTML=`기간 <strong>${md(s)} ~ ${md(e)}</strong> · 행사 <strong>${evs.length}</strong>건 중 <strong>${evs.length-h.size}</strong>건 메일에 포함 · 공지 ${(run.notices||[]).length}건`+
+      (up?` · 올린 시각 ${up.getMonth()+1}/${up.getDate()} ${pad(up.getHours())}:${pad(up.getMinutes())}`:"")+(run.generatedAt?` · 수집 ${esc(String(run.generatedAt).slice(5,16).replace("T"," "))}`:"");
+    $("ev-count").textContent=`${evs.length-h.size}/${evs.length}건 포함`;
+
+    // 행사 목록
+    if(!evs.length){$("ev-list").innerHTML=`<div class="empty">이 기간에 조건에 맞는 행사가 없습니다.</div>`;}
+    else{
+      let html="",last=null;
+      evs.forEach(ev=>{
+        const w=weekIndex(ev,run);
+        if(w!==last){if(last!==null)html+="</div>";const n=evs.filter(x=>weekIndex(x,run)===w).length;html+=`<div class="evlist" style="margin-top:${last===null?0:12}px"><div class="wk">${wkLabel(w)} · ${n}건</div>`;last=w;}
+        const off=h.has(ev.key), place=ev.online?"온라인":(ev.place||"장소 확인 필요");
+        html+=`<div class="ev${off?" off":""}">
+          <input type="checkbox" data-key="${esc(ev.key)}" ${off?"":"checked"} ${canWrite?"":"disabled"} aria-label="${esc(ev.title)} 메일에 포함">
+          <div style="min-width:0">
+            <div class="ev-when">${esc(whenText(ev))}</div>
+            <div class="ev-t">${esc(ev.title)}</div>
+            <div class="ev-m">${esc(ev.host||ev.source)} · ${esc(place)} · ${esc(ev.price||"비용 확인 필요")}${ev.deadline?` · 마감 ${md(P(ev.deadline))}`:""}</div>
+            <div class="ev-a"><a href="${esc(safeUrl(ev.url))}" target="_blank" rel="noopener">신청 페이지</a><a href="${esc(gcalLink(ev))}" target="_blank" rel="noopener">캘린더에 추가</a><span class="muted">${esc(ev.source)}</span></div>
+          </div></div>`;
+      });
+      $("ev-list").innerHTML=html+"</div>";
+    }
+    $("preview").srcdoc=renderMail(run,included(run));
+
+    // 사이트별 결과
+    const rep=run.report||[];
+    $("rep-rows").innerHTML=rep.length?rep.map(r=>`<tr><td>${esc(r.site)}</td><td class="num">${r.collected}</td><td class="num">${r.kept}</td>
+      <td class="small">${esc(Object.entries(r.dropped||{}).map(([k,v])=>`${k} ${v}`).join(", "))}</td>
+      <td class="small ${r.error&&!r.error.startsWith("수집기 없음")?"err-t":"muted"}">${esc(r.error||"정상")}</td></tr>`).join("")
+      :`<tr><td colspan="5" class="empty">사이트별 결과가 없습니다.</td></tr>`;
+  }
+
+  $("run-sel").addEventListener("change",e=>{runId=e.target.value;renderWeekly();});
+
+  // 행사 포함/제외: 체크 변화를 모아 한 번에 저장
+  let hideTimer=null, pendingHidden=null;
+  $("ev-list").addEventListener("change",e=>{
+    const cb=e.target.closest("input[data-key]"); if(!cb) return;
+    const run=curRun(); if(!run||!db) return;
+    const h=pendingHidden||hiddenSet(run);
+    cb.checked?h.delete(cb.dataset.key):h.add(cb.dataset.key);
+    pendingHidden=h;
+    cb.closest(".ev").classList.toggle("off",!cb.checked);
+    $("preview").srcdoc=renderMail(run,(run.events||[]).filter(x=>!h.has(x.key)));
+    $("ev-count").textContent=`${(run.events||[]).length-h.size}/${(run.events||[]).length}건 포함`;
+    clearTimeout(hideTimer);
+    hideTimer=setTimeout(async()=>{
+      const list=[...pendingHidden]; pendingHidden=null;
+      try{await db.collection("runs").doc(run.id).update({hidden:list});}catch(err){handleWriteErr(err);}
+    },700);
+  });
+
+  // 결과 파일 올리기
+  async function upload(file){
+    if(!db){toast("저장소에 연결되지 않아 올릴 수 없습니다");return;}
+    let b;
+    try{b=JSON.parse(await file.text());}catch(_){toast("JSON 파일이 아닙니다. out/upload_날짜.json을 골라 주세요");return;}
+    if(!b||b.kind!=="seminar-ir-upload"||!Array.isArray(b.events)||!/^\d{8}$/.test(String(b.stamp||""))){toast("수집 결과 파일이 아닙니다. out/upload_날짜.json을 골라 주세요");return;}
+    const prev=runs.find(r=>r.id===b.stamp);
+    const keys=new Set(b.events.map(e=>e.key));
+    const doc={stamp:b.stamp,today:b.today,winStart:b.winStart,winEnd:b.winEnd,generatedAt:b.generatedAt||"",
+      events:b.events,notices:b.notices||[],report:b.report||[],
+      hidden:(prev&&Array.isArray(prev.hidden)?prev.hidden:[]).filter(k=>keys.has(k)),
+      uploadedAt:new Date().toISOString()};
+    try{
+      await db.collection("runs").doc(b.stamp).set(doc);
+      runId=b.stamp; toast(`${b.events.length}건을 올렸습니다${prev?" (같은 날짜 결과를 새로 바꿨습니다)":""}`);
+    }catch(e){handleWriteErr(e);}
+  }
+  $("up-btn").addEventListener("click",()=>$("up-file").click());
+  $("up-file").addEventListener("change",e=>{const f=e.target.files[0];if(f)upload(f);e.target.value="";});
+  const dz=$("drop");
+  dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("over");});
+  dz.addEventListener("dragleave",()=>dz.classList.remove("over"));
+  dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("over");const f=e.dataTransfer.files[0];if(f)upload(f);});
+
+  // 메일 복사·저장
+  function mailParts(){
+    const run=curRun(); const evs=included(run); const s=P(run.winStart), e=P(run.winEnd);
+    return {html:renderMail(run,evs),subject:`[세미나·IR] 주간 일정 ${pad(s.mo)}/${pad(s.d)}~${pad(e.mo)}/${pad(e.d)} (${evs.length}건)`,run};
+  }
+  $("copy-mail").addEventListener("click",()=>{
+    const {html,subject}=mailParts();
+    const done=()=>toast(`복사했습니다. Gmail 새 메일 본문에 붙여 넣으세요. 제목: ${subject}`);
+    try{
+      if(window.ClipboardItem&&navigator.clipboard.write){
+        navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([html],{type:"text/html"}),"text/plain":new Blob([subject],{type:"text/plain"})})]).then(done,()=>toast("복사하지 못했습니다. '메일 HTML 저장'을 써 주세요"));
+      }else{navigator.clipboard.writeText(html).then(done,()=>toast("복사하지 못했습니다. '메일 HTML 저장'을 써 주세요"));}
+    }catch(_){toast("복사하지 못했습니다. '메일 HTML 저장'을 써 주세요");}
+  });
+  $("save-mail").addEventListener("click",()=>{const {html,run}=mailParts();saveFile(`세미나IR_메일_${run.stamp}.html`,html);});
+
+  /* ================= 시작 ================= */
+  (async function init(){
+    const claude=window.claude;
+    renderWeekly();
+    if(!claude||!claude.use){setStatus("저장소 없이 열렸습니다. claude.ai에서 열어야 편집할 수 있습니다",true);$("rows").innerHTML=`<tr><td colspan="7" class="empty">저장소에 연결되지 않았습니다.</td></tr>`;$("add").disabled=true;$("drop").hidden=true;return;}
+    const [d,u,dl]=await Promise.all([claude.use("db"),claude.use("user"),claude.use("downloads")]);
+    db=d; downloads=dl; $("exp-save").hidden=!downloads;
+    if(!db){setStatus("저장소에 연결할 수 없습니다. 로그인 상태를 확인해 주세요",true);$("rows").innerHTML=`<tr><td colspan="7" class="empty">저장소에 연결되지 않았습니다.</td></tr>`;$("add").disabled=true;$("drop").hidden=true;return;}
+    try{const w=u&&u.can?await u.can("data.write"):null;if(w===false){canWrite=false;applyReadOnly();}}catch(_){}
+    let loaded=false;
+    const timer=setTimeout(()=>{if(!loaded)setStatus("데이터를 아직 불러오지 못했습니다. 연결을 확인해 주세요",true);},10000);
+    db.collection("sites").onSnapshot(snap=>{
+      sites=snap.docs.map(x=>({id:x.id,...x.data()}));
+      if(!snap.metadata.fromCache){loaded=true;clearTimeout(timer);setStatus(`사이트 ${sites.length}곳 · 실시간 동기화${canWrite?"":" · 읽기 전용"}`);}
+      render();
+    },e=>{clearTimeout(timer);setStatus("사이트 목록을 불러오지 못했습니다",true);});
+    db.doc("config/rules").onSnapshot(s=>{
+      const d=s.exists?s.data():{include:[],exclude:[],regions:[],weeks:4,send:""};
+      if(lastSavedAt&&String(d.updatedAt||"")<lastSavedAt) return; // 저장 직후 도착한 예전 데이터는 무시
+      rules=d;renderRules();
+    },()=>{});
+    db.collection("runs").orderBy("stamp","desc").limit(12).onSnapshot(snap=>{
+      runs=snap.docs.map(x=>({id:x.id,...x.data()}));
+      if(!runs.find(r=>r.id===runId)) runId=runs[0]?runs[0].id:null;
+      if(pendingHidden===null) renderWeekly();
+    },()=>{setStatus("수집 결과를 불러오지 못했습니다",true);});
+  })();
+})();
+</script>

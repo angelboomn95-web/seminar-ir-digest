@@ -17,6 +17,7 @@ import re
 import sys
 import traceback
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from sources import KST, collector_for
@@ -65,6 +66,49 @@ def norm_title(t: str) -> str:
     return re.sub(r"[\s\[\]()<>「」『』〈〉【】\"'·,.:|/-]", "", t).lower()
 
 
+# 창업자·기업 대상 참가자 모집 공고(행사를 보러 가는 자리가 아님). '청중평가단 모집', '참관 신청'은 남긴다.
+RECRUIT_RE = re.compile(
+    r"(참가|참여|입주|입점|지원|육성)\s*(기업|팀|스타트업|기관|사)\s*(모집|선발|공모)"
+    r"|\d+\s*기\s*(모집|선발)|공개\s*모집|(기업|팀|스타트업)\s*(모집|선발)")
+AUDIENCE_RE = re.compile(r"청중|참관|관람|방청|사전\s*등록")
+
+
+def is_recruit(title: str) -> bool:
+    return bool(RECRUIT_RE.search(title)) and not AUDIENCE_RE.search(title)
+
+
+def deadline_passed(ev, today: datetime) -> bool:
+    """신청 마감이 이미 지난 공고. 마감 필드가 있으면 그것을, 없으면 제목의 '(~8/2)', '(~6.18)' 표기를 본다."""
+    if ev.deadline:
+        return ev.deadline < today
+    m = re.search(r"~\s*(\d{1,2})\s*[./]\s*(\d{1,2})(?!\d)", ev.title)
+    if not m:
+        return False
+    mo, d = int(m.group(1)), int(m.group(2))
+    try:
+        dl = today.replace(month=mo, day=d, hour=23, minute=59)
+    except ValueError:
+        return False
+    return dl < today and (today - dl).days < 240  # 연말에 내년 1~2월 마감을 지난 것으로 보지 않게
+
+
+def _core(t: str) -> str:
+    """중복 비교용 제목: 앞쪽 [주최]·(기관) 꼬리표, 연도, '참관 신청' 같은 꼬리말을 뗀다."""
+    t = re.sub(r"^\s*([\[(【「][^\])】」]{0,30}[\])】」]\s*)+", "", t)
+    t = re.sub(r"\b20\d\d\b|참관\s*신청|참가\s*신청|개최\s*안내|안내", "", t)
+    return norm_title(t)
+
+
+def same_event(a: str, b: str, same_time: bool = False) -> bool:
+    """같은 날 열리는 두 공고가 같은 행사인지. 시작 시각까지 같으면(사이트마다 제목을 다르게 단 경우) 기준을 낮춘다."""
+    a, b = _core(a), _core(b)
+    if not a or not b:
+        return False
+    if min(len(a), len(b)) >= 6 and (a in b or b in a):
+        return True
+    return SequenceMatcher(None, a, b).ratio() >= (0.5 if same_time else 0.72)
+
+
 def run(today: datetime):
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     rules = cfg["rules"]
@@ -75,7 +119,7 @@ def run(today: datetime):
     allow_online = "온라인" in rules.get("regions", [])
 
     notice_from = win_start - timedelta(days=NOTICE_DAYS)
-    report, kept, notices, seen = [], [], [], set()
+    report, kept, notices, seen = [], [], [], []
     for site in cfg["sites"]:
         if site.get("status") == "제외":
             continue
@@ -105,7 +149,8 @@ def run(today: datetime):
             if not ev.start:
                 # 게시판 공지 중 최근 글이고 키워드가 맞으면 '날짜 확인 필요'로 메일 하단에 따로 싣는다
                 txt = " ".join([ev.title, ev.summary])
-                if ev.posted and ev.posted >= notice_from and kw_hit(txt, include) and not kw_hit(txt, exclude):
+                if ev.posted and ev.posted >= notice_from and kw_hit(txt, include) and not kw_hit(txt, exclude) \
+                        and not is_recruit(ev.title):
                     d = ev.to_dict(); d["matched"] = kw_hit(txt, include)
                     notices.append(d); drop("날짜 미확인(공지로 표시)")
                 else:
@@ -118,17 +163,23 @@ def run(today: datetime):
                     drop("지역"); continue
             elif not region_ok(ev.place, ev.title, regions):
                 drop("지역"); continue
-            text = " ".join([ev.title, ev.summary, ev.host, " ".join(ev.tags)])
-            ex = kw_hit(" ".join([ev.title, ev.summary, " ".join(ev.tags)]), exclude)
+            # 행사 플랫폼(키워드 검색형)은 등록자가 단 태그·요약이 넓어서 포함·제외 모두 제목으로만 판단한다
+            ex = kw_hit(ev.title if uses_kw else " ".join([ev.title, ev.summary, " ".join(ev.tags)]), exclude)
             if ex:
                 drop(f"제외 키워드({ex})"); continue
+            if is_recruit(ev.title):
+                drop("참가자 모집 공고"); continue
+            if deadline_passed(ev, today):
+                drop("신청 마감 지남"); continue
+            text =ev.title if uses_kw else " ".join([ev.title, ev.summary, ev.host, " ".join(ev.tags)])
             inc = kw_hit(text, include)
             if not inc:
                 drop("포함 키워드 없음"); continue
-            key = (norm_title(ev.title)[:40], ev.start.date())
-            if key in seen:
+            day = ev.start.date()
+            timed = ev.start.hour or ev.start.minute
+            if any(d == day and same_event(t, ev.title, bool(timed) and s == ev.start) for t, d, s in seen):
                 drop("중복"); continue
-            seen.add(key)
+            seen.append((ev.title, day, ev.start))
             d = ev.to_dict()
             d["matched"] = inc
             kept.append(d)

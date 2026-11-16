@@ -107,7 +107,7 @@ def render_mail(events: list[dict], today: datetime, start: datetime, end: datet
   <tr><td style="font-size:13px;line-height:1.7;color:{C_TEXT};">
     안녕하세요, 투자전략팀입니다.<br>
     {_md(start)} ~ {_md(end)} 기간의 세미나·교육·IR/데모데이 일정 <b>{len(events)}건</b>을 날짜순으로 정리했습니다.<br>
-    <span style="color:{C_MUTED};">세미나·IR 일정은 팀 캘린더에도 등록됩니다.(예정)</span></td></tr>
+    <span style="color:{C_MUTED};">각 행사의 '캘린더에 추가'를 누르면 내 구글 캘린더에 바로 넣을 수 있습니다.</span></td></tr>
   {''.join(body)}
   <tr><td style="padding:24px 0 0;font-size:11px;color:{C_MUTED};line-height:1.6;background:#fff;">
     <div style="background:{C_BAND};padding:10px 12px;">{escape(foot)}<br>

@@ -109,9 +109,10 @@ def same_event(a: str, b: str, same_time: bool = False) -> bool:
     return SequenceMatcher(None, a, b).ratio() >= (0.5 if same_time else 0.72)
 
 
-def run(today: datetime):
+def run(today: datetime, rules: dict | None = None):
+    """rules를 주면(앱의 '수집 기준' 탭에서 저장한 값) config.json의 공통 규칙 대신 쓴다."""
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-    rules = cfg["rules"]
+    rules = {**cfg["rules"], **(rules or {})}
     weeks = int(rules.get("weeks", 4))
     win_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
     win_end = win_start + timedelta(days=7 * weeks)
@@ -132,7 +133,9 @@ def run(today: datetime):
         fn, uses_kw = c
         include = list(dict.fromkeys(rules.get("include", []) + site.get("include", [])))
         exclude = list(dict.fromkeys(rules.get("exclude", []) + site.get("exclude", [])))
-        search_kws = (site.get("include") or rules.get("include", [])) if uses_kw else []
+        # 검색형 사이트(온오프믹스·이벤터스)는 '플랫폼 검색어'로 찾고, 찾은 결과를 포함·제외 키워드로 거른다.
+        # 포함 키워드 전체로 검색하면 'AI', '세미나' 같은 넓은 단어 때문에 일반 행사가 크게 늘어난다.
+        search_kws = (rules.get("search") or site.get("include") or rules.get("include", [])) if uses_kw else []
         try:
             events = fn(site, search_kws)
         except Exception as e:  # 한 사이트 오류가 전체를 멈추지 않게

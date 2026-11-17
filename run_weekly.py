@@ -30,6 +30,17 @@ ROOT = Path(__file__).parent
 LOGS = ROOT / "logs"
 
 
+def sheet_rules() -> dict | None:
+    """앱 '수집 기준' 탭에서 저장한 규칙(시트). 로그인·시트가 없으면 None → config.json 기본값."""
+    try:
+        from google_auth import load_creds
+        settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8"))
+        creds = load_creds()
+        return rc.load_rules(creds, settings["recipients_sheet_id"]) if creds else None
+    except Exception:
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--today")
@@ -53,7 +64,7 @@ def main() -> int:
 
     ok = True
     try:
-        kept, report = run(today)
+        kept, report = run(today, rules=sheet_rules())
         errs = [r for r in report if r["error"] and "수동 확인" not in r["error"]]
         log(f"수집 완료: {len(kept)}건 / 사이트 오류 {len(errs)}곳")
         for r in errs:

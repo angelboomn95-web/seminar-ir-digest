@@ -1,4 +1,4 @@
-"""세미나·IR 일정 알림 — 구글 로그인 → 행사 확인 → 받는 사람 관리 → 메일 발송·캘린더 등록.
+"""세미나·IR 일정 알림 — 구글 로그인 → 수집 기준 → 행사 확인 → 수집 결과 → 받는 사람 관리 → 메일 발송·캘린더 등록.
 
 실행
 - Streamlit Cloud: 저장소를 연결하고 Secrets에 [oauth], [app]을 넣는다(.streamlit/secrets.toml.example 참고).
@@ -158,8 +158,8 @@ def current_rules() -> dict:
     return st.session_state.rules
 
 
-tab_ev, tab_to, tab_send, tab_rule, tab_rep = st.tabs(
-    ["① 행사 확인", "② 받는 사람", "③ 보내기", "수집 기준", "사이트별 수집 결과"])
+tab_rule, tab_ev, tab_rep, tab_to, tab_send = st.tabs(
+    ["① 수집 기준", "② 행사 확인", "③ 수집 결과", "④ 받는 사람", "⑤ 보내기"])
 
 with tab_ev:
     c1, c2, c3 = st.columns([1, 1.2, 2])
@@ -272,7 +272,7 @@ with tab_to:
 with tab_send:
     b = st.session_state.get("bundle")
     if not b:
-        st.info("① 행사 확인 탭에서 먼저 행사를 불러와 주세요.")
+        st.info("② 행사 확인 탭에서 먼저 행사를 불러와 주세요.")
     else:
         evs = included_events()
         today, s, e = _dt(b["today"]), _dt(b["winStart"]), _dt(b["winEnd"])
@@ -291,7 +291,7 @@ with tab_send:
         col_m, col_c = st.columns(2)
         with col_m:
             st.markdown("#### 메일")
-            st.caption("받는 사람: " + (", ".join(team) if team else "없음 — ② 받는 사람 탭에서 추가하세요"))
+            st.caption("받는 사람: " + (", ".join(team) if team else "없음 — ④ 받는 사람 탭에서 추가하세요"))
             if st.button("나에게 테스트 발송", width="stretch"):
                 send_mail(creds, build_message(me, [me], html, ics, "[테스트] " + subject, f"세미나IR_{b['stamp']}.ics"))
                 st.success(f"{me}로 보냈습니다. 받은편지함에서 모양을 확인해 보세요.")
@@ -328,7 +328,7 @@ with tab_rule:
     st.markdown("어떤 행사를 메일·캘린더에 담을지 정합니다. 저장하면 **다음 '지금 수집하기'부터** 적용되고, "
                 "팀원 모두 같은 기준을 씁니다." + (f" · [구글 시트에서 보기]({rc.sheet_url(SHEET_ID)})" if SHEET_ID else ""))
     if not SHEET_ID:
-        st.info("기준을 저장하려면 먼저 '② 받는 사람' 탭에서 시트를 만들어 주세요. 그 전까지는 기본 기준으로 수집합니다.")
+        st.info("기준을 저장하려면 먼저 '④ 받는 사람' 탭에서 시트를 만들어 주세요. 그 전까지는 기본 기준으로 수집합니다.")
     elif not st.session_state.get("rules_from_sheet"):
         st.caption("아직 저장한 기준이 없어 기본 기준(config.json)을 보여 줍니다.")
 
@@ -369,7 +369,7 @@ with tab_rule:
             rc.save_rules(creds, SHEET_ID, new)
             st.session_state.rules = new
             st.session_state.rules_from_sheet = True
-            st.success("저장했습니다. '① 행사 확인 → 지금 수집하기'를 누르면 새 기준으로 다시 모읍니다.")
+            st.success("저장했습니다. '② 행사 확인 → 지금 수집하기'를 누르면 새 기준으로 다시 모읍니다.")
     if b2.button("기본값으로 되돌리기", width="stretch"):
         st.session_state.rules = config_rules()
         for k in ("rule_search", "rule_inc", "rule_exc", "rule_regions", "rule_weeks"):

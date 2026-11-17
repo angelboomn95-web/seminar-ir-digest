@@ -404,22 +404,28 @@ def nextround(site, keywords, max_posts=10):
         if not when:
             i = L.index(line)
             when = L[i + 1] if i + 1 < len(L) else ""
-        m = re.search(r"(\d{1,2})\.\s*(\d{1,2})\.?\s*(?:\([^)]*\))?\s*(\d{1,2})?\s*(AM|PM)?", when, re.I)
+        # "11.18. (수) 2PM", "11.27(금) 1:00PM (@양재 aT센터)", "11.24(화)"
+        m = re.search(r"(\d{1,2})\.\s*(\d{1,2})\.?\s*(?:\([^)]*\))?\s*(?:(\d{1,2})(?::(\d{2}))?\s*(AM|PM))?", when, re.I)
         start = None; has_time = False
         if m:
             mo, d = int(m.group(1)), int(m.group(2))
             y = now.year + (1 if mo < now.month - 6 else 0)
             hh = int(m.group(3)) if m.group(3) else 0
-            if m.group(4) and m.group(4).upper() == "PM" and hh < 12:
+            mm = int(m.group(4)) if m.group(4) else 0
+            ap = (m.group(5) or "").upper()
+            if ap == "PM" and hh < 12:
                 hh += 12
+            if ap == "AM" and hh == 12:
+                hh = 0
             has_time = bool(m.group(3))
             try:
-                start = datetime(y, mo, d, hh, tzinfo=KST)
+                start = datetime(y, mo, d, hh, mm, tzinfo=KST)
             except ValueError:
                 pass
+        at = re.search(r"\(@\s*([^)]+)\)", when)
         sessions = [l.strip("[]") for l in L if l.startswith("[IR Session")]
         out.append(Event(site["name"], f"KDB NextRound {title}", url, start, has_time=has_time, host="KDB산업은행",
-                         place="NextRound 라운지(여의도) 또는 공지 장소", price="무료",
+                         place=at.group(1).strip() if at else "NextRound 라운지(여의도) 또는 공지 장소", price="무료",
                          summary=" · ".join(sessions)[:120] or "스타트업 IR 라운드", tags=["IR", "데모데이"]))
     return out
 

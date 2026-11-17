@@ -22,6 +22,8 @@
 | `out/` | 실행 결과 (`events_*.json`, `report_*.json`, `mail_*.html`) |
 
 ## 주간 운영
+앱 주소: https://seminar-ir-digest.streamlit.app/ (@dcamp.kr 구글 계정으로 로그인)
+
 1. 앱(Streamlit) 접속 → **Google 계정으로 로그인** (@dcamp.kr).
 2. **① 행사 확인**: '지금 수집하기'(약 1분) 또는 PC에서 만든 `out/upload_날짜.json` 올리기 → 뺄 행사는 '포함' 해제.
 3. **② 받는 사람**: 표에서 추가·수정·'받기' 체크 후 저장. 아래 '실제로 메일을 받는 사람'이 최종 발송 목록.
@@ -71,3 +73,4 @@ python run_weekly.py --no-calendar  # 메일만
 - 2026-11-12: 수집 품질 개선 — 참가자 모집·마감 지난 공고 제외, 비슷한 제목 중복 합치기, 행사 플랫폼은 제목 기준 판단, 개인 재테크 제외 키워드 추가. 56건 → 24건.
 - 2026-11-17: 점검 — 수집기 정상(사이트 오류 0, 약 1분, 27건). 넥스트라운드 '1:00PM' 시간·장소 읽기 수정, 00:00 행사는 캘린더에 종일 일정으로.
 - 2026-11-17: Streamlit 앱을 회의실 예약 앱과 같은 웹 구글 로그인 방식으로 개편(Streamlit Cloud 배포용). 받는 사람 관리 화면(구글 시트 저장, 실제 발송 목록·발송 기록), 나에게 테스트 발송 추가.
+- 2026-11-17: Streamlit Cloud 배포(seminar-ir-digest), Google Cloud에 OAuth 웹 클라이언트 생성(Gmail·Calendar·Sheets API 사용 설정), Secrets 입력. 로그인 설정 전 안내 문구 개선.

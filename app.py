@@ -303,14 +303,16 @@ with tab_send:
                 st.success(f"{len(team)}명에게 보냈습니다.")
         with col_c:
             st.markdown("#### 캘린더")
-            st.caption(f"포함된 행사 {len(evs)}건을 내 구글 캘린더의 '세미나·IR'에 넣습니다. 없으면 새로 만들고, "
-                       "이미 넣은 행사는 내용만 갱신합니다.")
+            st.caption(f"'세미나·IR' 캘린더를 지금 포함된 행사 {len(evs)}건과 똑같이 맞춥니다. 새 행사는 넣고, "
+                       "이미 있는 행사는 내용을 갱신하고, 이번 목록에 없는 앞으로의 일정은 지웁니다. "
+                       "(지난 일정과 직접 넣은 일정은 그대로 둡니다)")
             if st.button("'세미나·IR' 캘린더에 등록", width="stretch"):
                 with st.spinner("등록하는 중…"):
-                    res = sync_calendar(creds, evs, CALENDAR_ID or st.session_state.get("calendar_id"))
+                    res = sync_calendar(creds, evs, CALENDAR_ID or st.session_state.get("calendar_id"),
+                                         prune_from=s)
                 st.session_state.calendar_id = res["calendar_id"]
                 save_local_settings(calendar_id=res["calendar_id"])
-                st.success(f"신규 {res['created']}건 · 갱신 {res['updated']}건")
+                st.success(f"신규 {res['created']}건 · 갱신 {res['updated']}건 · 삭제 {res['deleted']}건")
                 for t, err in res["failed"]:
                     st.warning(f"실패: {t} — {err[:150]}")
         st.markdown("#### 메일 미리보기")

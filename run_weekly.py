@@ -75,8 +75,9 @@ def main() -> int:
         if a.no_calendar or a.dry_run:
             log("캘린더 등록 건너뜀")
         else:
-            res = sync_calendar(require_creds(), kept)
-            log(f"캘린더: 신규 {res['created']} / 갱신 {res['updated']} / 실패 {len(res['failed'])}")
+            win_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+            res = sync_calendar(require_creds(), kept, prune_from=win_start)
+            log(f"캘린더: 신규 {res['created']} / 갱신 {res['updated']} / 삭제 {res['deleted']} / 실패 {len(res['failed'])}")
             for t, e in res["failed"]:
                 log(f"  [실패] {t}: {e[:200]}")
             ok &= not res["failed"]

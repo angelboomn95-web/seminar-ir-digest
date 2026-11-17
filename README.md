@@ -16,7 +16,7 @@
 | `app.py` | **운영 화면(Streamlit)**: 구글 로그인 → ① 수집 기준 → ② 행사 확인 → ③ 수집 결과 → ④ 받는 사람 → ⑤ 메일 발송·캘린더 등록 |
 | `google_auth.py` | 구글 계정 로그인(OAuth, @dcamp.kr만). 웹(Streamlit Cloud)은 사람마다 세션 로그인, 로컬은 `token.json` |
 | `recipients.py` | 운영 시트 '세미나·IR 메일 수신자': 받는 사람(`수신자`), 발송 기록(`발송기록`), 수집 기준(`필터 규칙`) |
-| `notify.py` | 로그인한 Gmail 계정으로 메일 발송(.ics 첨부), '세미나·IR' 캘린더 찾기/생성·등록(같은 키로 중복 방지) |
+| `notify.py` | 로그인한 Gmail 계정으로 메일 발송(.ics 첨부), '세미나·IR' 캘린더 찾기/생성·등록(같은 키로 중복 방지, 이번 수집에 없는 앞으로의 일정은 삭제) |
 | `.streamlit/secrets.toml.example` | Streamlit Secrets 템플릿 (`[oauth]`, `[app]`) |
 | `run_weekly.py` | 주간 실행: 수집 → 캘린더 등록 → 메일 발송, `logs/run_*.log` 기록 |
 | `out/` | 실행 결과 (`events_*.json`, `report_*.json`, `mail_*.html`) |
@@ -78,3 +78,4 @@ python run_weekly.py --no-calendar  # 메일만
 - 2026-11-17: Streamlit Cloud 배포(seminar-ir-digest), Google Cloud에 OAuth 웹 클라이언트 생성(Gmail·Calendar·Sheets API 사용 설정), Secrets 입력. 로그인 설정 전 안내 문구 개선.
 - 2026-11-17: 앱에 '수집 기준' 탭 추가 — 플랫폼 검색어·포함/제외 키워드·지역·기간을 직접 수정, 시트에 저장해 팀 공용. 포함 키워드 전체로 검색하면 134건으로 늘어 검색어를 따로 둠(33건). 기본값에 M&A·회수 추가.
 - 2026-11-17: 앱 탭 순서를 작업 흐름대로 변경 — ① 수집 기준 → ② 행사 확인 → ③ 수집 결과 → ④ 받는 사람 → ⑤ 보내기.
+- 2026-11-17: 캘린더 등록을 '이번 수집 결과와 똑같이 맞추기'로 변경 — 목록에서 빠진 앞으로의 일정(앱이 넣은 것만)은 삭제, 지난 일정·직접 넣은 일정은 유지, 수집 0건이면 삭제하지 않음.

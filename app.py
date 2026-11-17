@@ -143,7 +143,23 @@ def load_bundle(b: dict) -> None:
     st.session_state.include = {e["key"]: True for e in b["events"]}
 
 
-tab_ev, tab_to, tab_send, tab_rep = st.tabs(["① 행사 확인", "② 받는 사람", "③ 보내기", "사이트별 수집 결과"])
+def config_rules() -> dict:
+    r = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))["rules"]
+    return {"search": r.get("search", ["VC", "투자", "IR", "데모데이"]), "include": r.get("include", []),
+            "exclude": r.get("exclude", []), "regions": r.get("regions", []), "weeks": int(r.get("weeks", 4))}
+
+
+def current_rules() -> dict:
+    """수집에 쓸 필터 규칙: 시트 '필터 규칙' 탭 → 없으면 config.json 기본값."""
+    if "rules" not in st.session_state:
+        saved = rc.load_rules(creds, SHEET_ID) if SHEET_ID else None
+        st.session_state.rules = {**config_rules(), **(saved or {})}
+        st.session_state.rules_from_sheet = bool(saved)
+    return st.session_state.rules
+
+
+tab_ev, tab_to, tab_send, tab_rule, tab_rep = st.tabs(
+    ["① 행사 확인", "② 받는 사람", "③ 보내기", "수집 기준", "사이트별 수집 결과"])
 
 with tab_ev:
     c1, c2, c3 = st.columns([1, 1.2, 2])
@@ -151,8 +167,8 @@ with tab_ev:
     if c2.button("지금 수집하기", type="primary", width="stretch", help="9개 사이트에서 새로 모읍니다 (약 1분)"):
         from collect import OUT, run
         today = datetime(base.year, base.month, base.day, tzinfo=KST)
-        with st.spinner("사이트에서 행사를 모으는 중… (약 1분)"):
-            run(today)
+        with st.spinner("사이트에서 행사를 모으는 중… (1~2분)"):
+            run(today, rules=current_rules())
         load_bundle(json.loads((OUT / f"upload_{today:%Y%m%d}.json").read_text(encoding="utf-8")))
         st.rerun()
     up = c3.file_uploader("또는 PC에서 수집한 결과 파일 올리기 (out/upload_날짜.json)", type=["json"])
@@ -299,6 +315,66 @@ with tab_send:
                     st.warning(f"실패: {t} — {err[:150]}")
         st.markdown("#### 메일 미리보기")
         st.iframe(html, height=900)
+
+
+# ================================================================ 수집 기준
+def _split(s: str) -> list[str]:
+    import re as _re
+    return list(dict.fromkeys(x.strip() for x in _re.split(r"[,，\n]", s or "") if x.strip()))
+
+
+with tab_rule:
+    r = current_rules()
+    st.markdown("어떤 행사를 메일·캘린더에 담을지 정합니다. 저장하면 **다음 '지금 수집하기'부터** 적용되고, "
+                "팀원 모두 같은 기준을 씁니다." + (f" · [구글 시트에서 보기]({rc.sheet_url(SHEET_ID)})" if SHEET_ID else ""))
+    if not SHEET_ID:
+        st.info("기준을 저장하려면 먼저 '② 받는 사람' 탭에서 시트를 만들어 주세요. 그 전까지는 기본 기준으로 수집합니다.")
+    elif not st.session_state.get("rules_from_sheet"):
+        st.caption("아직 저장한 기준이 없어 기본 기준(config.json)을 보여 줍니다.")
+
+    c1, c2 = st.columns(2)
+    inc_txt = c1.text_area("포함 키워드 — 하나라도 들어 있어야 담습니다",
+                           "\n".join(r["include"]), height=260, key="rule_inc",
+                           help="한 줄에 하나(또는 쉼표로 구분). 영문(AI, IR, VC 등)은 단어 단위로 찾아 'FAIR' 같은 단어에 걸리지 않습니다.")
+    exc_txt = c2.text_area("제외 키워드 — 하나라도 들어 있으면 뺍니다",
+                           "\n".join(r["exclude"]), height=260, key="rule_exc",
+                           help="포함 키워드보다 먼저 적용됩니다. 예: 채용, 재테크, 지원사업 설명회")
+    c1.caption(f"{len(_split(inc_txt))}개 · 예: VC, 벤처투자, M&A, IPO, 세컨더리, IR, 데모데이, 산업 동향, AI, 딥테크")
+    c2.caption(f"{len(_split(exc_txt))}개 · 예: 채용박람회, 잡페어, 지원사업 설명회, 창업교육")
+
+    search_txt = st.text_input("행사 플랫폼 검색어 — 온오프믹스·이벤터스에서 이 단어로 찾은 뒤 위 키워드로 거릅니다",
+                               ", ".join(r["search"]), key="rule_search",
+                               help="넓은 단어(AI, 세미나 등)를 넣으면 관련 없는 일반 행사가 크게 늘어납니다. 투자 관련 단어 위주로 넣으세요.")
+    c3, c4 = st.columns(2)
+    region_opts = list(dict.fromkeys(["서울", "온라인"] + r["regions"]))
+    regions = c3.multiselect("지역 — 장소가 이 지역이거나 온라인이면 담습니다", region_opts, default=r["regions"],
+                             accept_new_options=True, key="rule_regions",
+                             help="'온라인'을 빼면 온라인 행사는 담지 않습니다. 장소에 지역명이 없으면(예: 호텔 이름만) 다른 지역이 적혀 있을 때만 뺍니다.")
+    weeks = c4.selectbox("메일에 담을 기간", [2, 3, 4, 5, 6], index=[2, 3, 4, 5, 6].index(r["weeks"]) if r["weeks"] in (2, 3, 4, 5, 6) else 2,
+                         format_func=lambda w: f"기준일부터 {w}주", key="rule_weeks")
+
+    with st.expander("기준과 상관없이 항상 빼는 것"):
+        st.markdown("- 창업자·기업 대상 **참가자 모집 공고** ('참가기업 모집', 'N기 모집' 등 — '청중평가단 모집', '참관 신청'은 남김)\n"
+                    "- **신청 마감이 지난** 공고\n"
+                    "- 여러 사이트에 올라온 **같은 행사**(제목이 비슷하면 하나만)\n"
+                    "- 온오프믹스·이벤터스는 등록자가 단 태그가 넓어서 **제목**으로만 키워드를 판단")
+
+    b1, b2, _ = st.columns([1, 1, 2])
+    if b1.button("기준 저장", type="primary", width="stretch", disabled=not SHEET_ID):
+        new = {"search": _split(search_txt), "include": _split(inc_txt), "exclude": _split(exc_txt),
+               "regions": regions, "weeks": weeks}
+        if not new["include"]:
+            st.error("포함 키워드가 하나도 없으면 아무 행사도 담기지 않습니다. 하나 이상 넣어 주세요.")
+        else:
+            rc.save_rules(creds, SHEET_ID, new)
+            st.session_state.rules = new
+            st.session_state.rules_from_sheet = True
+            st.success("저장했습니다. '① 행사 확인 → 지금 수집하기'를 누르면 새 기준으로 다시 모읍니다.")
+    if b2.button("기본값으로 되돌리기", width="stretch"):
+        st.session_state.rules = config_rules()
+        for k in ("rule_search", "rule_inc", "rule_exc", "rule_regions", "rule_weeks"):
+            st.session_state.pop(k, None)
+        st.rerun()
 
 
 # ================================================================ 사이트별 결과

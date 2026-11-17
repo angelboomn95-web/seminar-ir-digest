@@ -103,7 +103,9 @@ else:
     if not creds:
         def _local_btn():
             if not ga.CREDENTIALS_FILE.exists():
-                st.error("credentials.json이 없습니다. README '최초 설정'을 참고해 주세요.")
+                st.error("구글 로그인 설정이 아직 없습니다. 관리자가 앱 Settings → Secrets에 [oauth] "
+                         "(client_id, client_secret, redirect_uri)를 넣으면 로그인 버튼이 나타납니다. "
+                         "(PC에서 실행할 때는 credentials.json) — README '최초 설정' 참고")
             elif st.button("Google 계정으로 로그인", type="primary", width="stretch"):
                 try:
                     with st.spinner("새 탭에서 로그인을 마쳐 주세요…"):

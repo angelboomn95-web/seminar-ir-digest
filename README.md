@@ -13,20 +13,20 @@
 | `collect.py` | 수집 → 기간·지역·키워드 필터 → 중복 제거 → 결과 저장 |
 | `render.py` | 주간 메일 HTML (날짜순, 행사별 일시/행사명/주최/요약/장소/비용/마감/신청 링크) |
 | `calendar_ics.py` | 행사 → `.ics` 파일, 행사 고유 키(신청 링크+날짜+제목 해시) |
-| `google_auth.py` | 구글 계정 로그인(OAuth, @dcamp.kr만). 로그인 정보는 `token.json`에 저장 |
+| `app.py` | **운영 화면(Streamlit)**: 구글 로그인 → ① 행사 확인 → ② 받는 사람 관리 → ③ 메일 발송·캘린더 등록 |
+| `google_auth.py` | 구글 계정 로그인(OAuth, @dcamp.kr만). 웹(Streamlit Cloud)은 사람마다 세션 로그인, 로컬은 `token.json` |
+| `recipients.py` | 받는 사람 목록·발송 기록 — 구글 시트 '세미나·IR 메일 수신자' |
 | `notify.py` | 로그인한 Gmail 계정으로 메일 발송(.ics 첨부), '세미나·IR' 캘린더 찾기/생성·등록(같은 키로 중복 방지) |
-| `app.py` | 화면: 로그인 → 수집 → 메일 미리보기 → 캘린더 등록 → 발송 (`실행하기.bat`) |
+| `.streamlit/secrets.toml.example` | Streamlit Secrets 템플릿 (`[oauth]`, `[app]`) |
 | `run_weekly.py` | 주간 실행: 수집 → 캘린더 등록 → 메일 발송, `logs/run_*.log` 기록 |
 | `out/` | 실행 결과 (`events_*.json`, `report_*.json`, `mail_*.html`) |
 
-## 주간 운영 (A안: 수집은 PC, 나머지는 페이지)
-1. 수집기 폴더에서 `python collect.py` → `out/upload_YYYYMMDD.json` 생성.
-2. '세미나·IR 수집 소스' 페이지(claude.ai artifact) → **주간 일정** 탭에 그 파일을 끌어 놓기.
-3. 행사 목록에서 메일에 넣지 않을 행사 체크 해제(팀원 모두 같은 화면을 봄).
-4. **메일 본문 복사** → Gmail 새 메일에 붙여 넣어 발송. 캘린더는 행사별 '캘린더에 추가' 또는 `out/events_*.ics`.
-   - Gmail·Google Calendar를 claude.ai에 연결하면 페이지에서 바로 발송·등록하도록 바꿀 예정.
-5. 수집 사이트·키워드를 바꿨다면 **수집 소스·규칙** 탭 → '수집기 설정(config.json)' 저장 → 이 폴더의 `config.json` 교체.
-- 페이지 소스: `page/seminar-ir.html`
+## 주간 운영
+1. 앱(Streamlit) 접속 → **Google 계정으로 로그인** (@dcamp.kr).
+2. **① 행사 확인**: '지금 수집하기'(약 1분) 또는 PC에서 만든 `out/upload_날짜.json` 올리기 → 뺄 행사는 '포함' 해제.
+3. **② 받는 사람**: 표에서 추가·수정·'받기' 체크 후 저장. 아래 '실제로 메일을 받는 사람'이 최종 발송 목록.
+4. **③ 보내기**: '나에게 테스트 발송'으로 모양 확인 → 받는 사람에게 발송 → '세미나·IR' 캘린더에 등록.
+- 수집 사이트·키워드는 '세미나·IR 수집 소스' 페이지(claude.ai, `page/seminar-ir.html`)에서 정리한 뒤 `config.json`에 반영한다.
 
 ## 사용법
 ```
@@ -43,18 +43,20 @@ python run_weekly.py                # 실제 발송 + 캘린더 등록
 python run_weekly.py --no-calendar  # 메일만
 ```
 
-## 최초 설정 (구글 로그인)
-1. Google Cloud 콘솔에서 프로젝트 생성 → **Gmail API**, **Google Calendar API** 사용 설정.
-2. OAuth 동의 화면: 사용자 유형 **내부(Internal)** 선택(@dcamp.kr 계정만 로그인 가능, 앱 검수 불필요).
-3. 사용자 인증 정보 → OAuth 클라이언트 ID → 유형 **데스크톱 앱** → JSON을 받아 이 폴더에 `credentials.json`으로 저장.
-4. `실행하기.bat` 실행 → **Google 계정으로 로그인** → 새 탭에서 로그인·권한 허용.
-5. 화면에서 ① 행사 수집 → ② 캘린더 등록 → ③ 메일 발송.
-   - 캘린더: 내 계정에 '세미나·IR' 캘린더가 없으면 자동으로 만든다. 팀원 공유는 구글 캘린더 설정에서 한 번 해 둔다.
-   - 메일: 받는 사람을 비워 두면 **로그인한 본인에게만** 간다(시범 운영). 정식 운영 때 '받는 사람 · 캘린더 설정'에 팀원 주소를 넣는다.
-6. 한 번 로그인하면 `token.json`이 남아 `python run_weekly.py`(자동 실행)도 같은 계정으로 동작한다. 계정을 바꾸려면 화면에서 로그아웃 후 다시 로그인.
+## 최초 설정 (Streamlit Cloud + 구글 로그인)
+1. **Google Cloud 콘솔**: 프로젝트 생성 → **Gmail API**, **Google Calendar API**, **Google Sheets API** 사용 설정.
+2. **OAuth 동의 화면**: 사용자 유형 **내부(Internal)** (@dcamp.kr 계정만 로그인 가능, 구글 검수 불필요).
+3. **Streamlit Cloud** (share.streamlit.io): 이 저장소 연결, Main file `app.py`로 배포 → 앱 주소 확인.
+4. **OAuth 클라이언트 ID** → 유형 **웹 애플리케이션** → 승인된 리디렉션 URI에 앱 주소(끝 `/` 포함) 등록.
+5. 앱 Settings → **Secrets**에 `.streamlit/secrets.toml.example` 내용을 채워 붙여넣기 (`client_id`, `client_secret`, `redirect_uri`).
+6. 앱에 로그인 → **② 받는 사람** → '받는 사람 시트 만들기' → 나온 시트 ID를 Secrets의 `[app] recipients_sheet_id`에 넣고, 시트를 팀원과 '편집자'로 공유.
+7. **③ 보내기**에서 캘린더 등록을 한 번 하면 '세미나·IR' 캘린더가 생긴다 → 구글 캘린더 설정에서 팀원과 공유.
+
+로컬 PC에서 쓸 때(주간 자동 실행 `run_weekly.py` 포함): OAuth 클라이언트를 **데스크톱 앱** 유형으로 하나 더 만들어 `credentials.json`으로 저장 → `streamlit run app.py`로 한 번 로그인하면 `token.json`이 생긴다.
 
 ## 운영 메모
-- 수집 사이트·키워드를 바꾸려면: 수집 소스 페이지에서 수정 → **수집기용 JSON** 복사 → `config.json`에 붙여넣기.
+- 수집 사이트·키워드를 바꾸려면: 수집 소스 페이지에서 수정 → '수집기 설정(config.json)' 저장 → 저장소의 `config.json` 교체 후 커밋(Streamlit Cloud는 저장소 내용으로 다시 배포됨).
+- 받는 사람 추가·삭제: 앱 '② 받는 사람' 탭 또는 구글 시트에서 직접. 발송 기록은 시트의 '발송기록' 탭.
 - 사이트 구조가 바뀌어 수집이 0건이면 `out/report_*.json`의 `error`를 보고 `sources.py`의 해당 함수를 고친다.
 - 새 사이트 수집기 추가: `sources.py`에 함수 작성 후 `COLLECTORS`에 도메인 등록. 등록되지 않은 사이트는 '수동 확인'으로 표시된다.
 - 실행이 실패하면 `logs/run_YYYYMMDD.log`의 `[오류]`, `[실패]`, `[중단]` 줄을 먼저 본다.
@@ -67,3 +69,5 @@ python run_weekly.py --no-calendar  # 메일만
 - 2026-11-12: 앱 비밀번호·서비스 계정 대신 구글 계정 로그인(OAuth)으로 전환, 로그인 화면·발송/등록 화면(Streamlit) 추가. 시범 기간엔 본인에게만 발송.
 - 2026-11-12: 4단계 — 페이지에 '주간 일정' 화면 추가(수집 결과 올리기, 행사 포함/제외, 메일 미리보기·복사·저장, 사이트별 결과). 수집기는 업로드용 묶음 파일(`upload_*.json`) 생성.
 - 2026-11-12: 수집 품질 개선 — 참가자 모집·마감 지난 공고 제외, 비슷한 제목 중복 합치기, 행사 플랫폼은 제목 기준 판단, 개인 재테크 제외 키워드 추가. 56건 → 24건.
+- 2026-11-17: 점검 — 수집기 정상(사이트 오류 0, 약 1분, 27건). 넥스트라운드 '1:00PM' 시간·장소 읽기 수정, 00:00 행사는 캘린더에 종일 일정으로.
+- 2026-11-17: Streamlit 앱을 회의실 예약 앱과 같은 웹 구글 로그인 방식으로 개편(Streamlit Cloud 배포용). 받는 사람 관리 화면(구글 시트 저장, 실제 발송 목록·발송 기록), 나에게 테스트 발송 추가.

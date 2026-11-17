@@ -107,3 +107,52 @@ def load_log(creds, sheet_id: str, n: int = 10) -> list[list[str]]:
         return rows[-n:][::-1]
     except Exception:
         return []
+
+
+# ---------------------------------------------------------------- 필터 규칙('필터 규칙' 탭)
+# 한 줄에 하나: 구분 | 값.  구분은 아래 다섯 가지. 시트에서 직접 줄을 추가·삭제해도 된다.
+RULES_TAB = "필터 규칙"
+RULE_KINDS = {"플랫폼 검색어": "search", "포함 키워드": "include", "제외 키워드": "exclude", "지역": "regions",
+              "기간(주)": "weeks"}
+
+
+def _tabs(creds, sheet_id: str) -> list[str]:
+    meta = _svc(creds).get(spreadsheetId=sheet_id, fields="sheets.properties.title").execute()
+    return [s["properties"]["title"] for s in meta.get("sheets", [])]
+
+
+def load_rules(creds, sheet_id: str) -> dict | None:
+    """시트에 저장된 필터 규칙. 탭이 없거나 비어 있으면 None(→ config.json 기본값을 쓴다)."""
+    try:
+        rows = _svc(creds).values().get(spreadsheetId=sheet_id, range=f"{RULES_TAB}!A2:B").execute().get("values", [])
+    except Exception:
+        return None
+    out = {"search": [], "include": [], "exclude": [], "regions": []}
+    for r in rows:
+        if len(r) < 2 or not r[1].strip():
+            continue
+        key = RULE_KINDS.get(r[0].strip())
+        if key == "weeks":
+            try:
+                out["weeks"] = max(1, min(8, int(float(r[1]))))
+            except ValueError:
+                pass
+        elif key:
+            if r[1].strip() not in out[key]:
+                out[key].append(r[1].strip())
+    out = {k: v for k, v in out.items() if v}  # 비어 있는 항목은 기본값(config.json)을 쓴다
+    return out if out.get("include") else None
+
+
+def save_rules(creds, sheet_id: str, rules: dict) -> None:
+    s = _svc(creds)
+    if RULES_TAB not in _tabs(creds, sheet_id):
+        s.batchUpdate(spreadsheetId=sheet_id,
+                      body={"requests": [{"addSheet": {"properties": {"title": RULES_TAB}}}]}).execute()
+    rows = [["구분", "값"]]
+    for label, key in RULE_KINDS.items():
+        vals = [rules.get(key)] if key == "weeks" else rules.get(key, [])
+        rows += [[label, str(v)] for v in vals if str(v).strip()]
+    s.values().clear(spreadsheetId=sheet_id, range=f"{RULES_TAB}!A:B").execute()
+    s.values().update(spreadsheetId=sheet_id, range=f"{RULES_TAB}!A1", valueInputOption="RAW",
+                      body={"values": rows}).execute()

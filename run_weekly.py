@@ -7,7 +7,8 @@
     python run_weekly.py --today 2026-11-16
 
 실행 기록: logs/run_YYYYMMDD.log
-발송·등록에는 구글 로그인(token.json)이 필요하다. 로그인은 app.py(실행하기.bat)에서 한 번 하면 된다.
+발송·등록에는 구글 로그인(token.json)이 필요하다. PC에서 app.py를 열어 한 번 로그인하면 된다.
+받는 사람은 settings.json의 recipients_sheet_id 시트에서 읽는다(앱에서 시트를 만들면 자동 저장).
 """
 from __future__ import annotations
 
@@ -19,8 +20,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from collect import OUT, run
-from google_auth import require_creds
-from notify import build_message, send_mail, sync_calendar
+import recipients as rc
+from calendar_ics import to_ics
+from google_auth import require_creds, user_email
+from notify import build_message, send_mail, subject_for, sync_calendar
 from sources import KST
 
 ROOT = Path(__file__).parent
@@ -70,13 +73,20 @@ def main() -> int:
         cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         weeks = int((cfg.get("rules") or {}).get("weeks") or 4)
         html = (OUT / f"mail_{stamp}.html").read_text(encoding="utf-8")
-        msg = build_message(require_creds(), html, OUT / f"events_{stamp}.ics", len(kept), today, today + timedelta(weeks=weeks) - timedelta(days=1)) \
-            if not (a.no_mail or a.dry_run) else None
-        if msg is None:
+        if a.no_mail or a.dry_run:
             log(f"메일 발송 건너뜀 (미리보기: out/mail_{stamp}.html)")
         else:
-            send_mail(require_creds(), msg)
-            log(f"메일 발송: {msg['To']} / {msg['Subject']}")
+            creds = require_creds()
+            me = user_email(creds)
+            settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8")) if (ROOT / "settings.json").exists() else {}
+            sid = settings.get("recipients_sheet_id", "")
+            to = [p["이메일"] for p in rc.active(rc.load(creds, sid))] if sid else []
+            to = to or [me]  # 받는 사람이 없으면 나에게만
+            subject = subject_for(len(kept), today, today + timedelta(weeks=weeks) - timedelta(days=1))
+            send_mail(creds, build_message(me, to, html, to_ics(kept), subject, f"세미나IR_{stamp}.ics"))
+            if sid:
+                rc.log_send(creds, sid, me, to, subject)
+            log(f"메일 발송: {len(to)}명 / {subject}")
     except Exception:
         ok = False
         log("[중단] " + traceback.format_exc())

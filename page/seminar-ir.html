@@ -481,7 +481,7 @@ details.rep[open] summary{margin-bottom:10px}
   const utc=ms=>new Date(ms).toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
   function span(ev){
     const s=P(ev.start);
-    if(ev.has_time){
+    if(ev.has_time&&(s.h||s.mi)){ // 00:00은 시간 정보 없음 → 종일
       let e=P(ev.end);
       const endMs=(!e||e.ms<=s.ms||e.day!==s.day)?s.ms+2*36e5:e.ms;
       return {s,allDay:false,startMs:s.ms,endMs};

@@ -45,7 +45,7 @@ def _span(ev: dict):
     """(start, end, all_day). 시간 있는 행사는 종료시각 없으면 2시간으로 둔다.
     여러 날 행사(예: 11/30~12/8 오피스아워)도 첫날 일정으로만 넣는다(캘린더가 몇 주씩 막히지 않게)."""
     s = _d(ev["start"])
-    if ev.get("has_time"):
+    if ev.get("has_time") and (s.hour or s.minute):  # 00:00은 시간 정보가 없는 것으로 보고 종일 일정으로
         e = _d(ev.get("end"))
         if not e or e <= s or e.date() != s.date():
             e = s + timedelta(hours=2)

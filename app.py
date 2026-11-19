@@ -346,12 +346,14 @@ with tab_rule:
             rows.append({"사이트": x["name"], "수집": how, "구분": x.get("category") or "", "링크": x["url"]})
         rows.sort(key=lambda r: ("👀" in r["수집"], "⛔" in r["수집"]))
         n_auto = sum(1 for r in rows if "수동" not in r["수집"] and "제외" not in r["수집"])
-        st.markdown(f"**수집 사이트** — 자동 {n_auto}곳 · 수동 확인 {sum('수동' in r['수집'] for r in rows)}곳",
-                    help="'자동 수집'은 공고 목록 전체를 읽고, '검색어로 수집'은 아래 플랫폼 검색어로 찾습니다. "
-                         "'수동 확인'은 아직 수집기가 없는 곳이라 직접 들어가 봐야 합니다. "
-                         "사이트 추가·삭제는 config.json을 고쳐 GitHub에 올리면 반영됩니다.")
-        st.dataframe(rows, hide_index=True, width="stretch", height=290,
-                     column_config={"링크": st.column_config.LinkColumn("링크", display_text="열기", width="small")})
+        n_manual = sum("수동" in r["수집"] for r in rows)
+        # 옆의 키워드 입력칸과 같은 모양: 작은 제목 + 같은 높이의 칸 + 아래 회색 설명
+        with st.container(gap=None):
+            st.markdown('<p style="font-size:14px;margin:0 0 0.25rem;line-height:1.6;min-height:1.5rem">'
+                        '수집 사이트 — 이곳들에서 행사를 모읍니다</p>', unsafe_allow_html=True)
+            st.dataframe(rows, hide_index=True, width="stretch", height=260,
+                         column_config={"링크": st.column_config.LinkColumn("링크", display_text="열기", width="small")})
+        st.caption(f"자동 {n_auto}곳 · 수동 확인 {n_manual}곳 · 사이트 추가·삭제는 config.json 수정 후 GitHub에 올리면 반영")
     inc_txt = c1.text_area("포함 키워드 — 하나라도 들어 있어야 담습니다",
                            "\n".join(r["include"]), height=260, key="rule_inc",
                            help="한 줄에 하나(또는 쉼표로 구분). 영문(AI, IR, VC 등)은 단어 단위로 찾아 'FAIR' 같은 단어에 걸리지 않습니다.")

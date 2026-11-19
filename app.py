@@ -349,13 +349,13 @@ with tab_rule:
         st.caption("아직 저장한 기준이 없어 기본 기준(config.json)을 보여 줍니다.")
 
     c0, c1, c2 = st.columns([1.2, 1, 1])
-    c0.markdown('<div style="font-size:14px;line-height:1.5;height:1.5rem;margin-bottom:-0.75rem">'
+    c0.markdown('<div style="font-size:14px;line-height:1.5">'
                 '수집 사이트 — 이곳들에서 행사를 모읍니다</div>', unsafe_allow_html=True)
     with c0:
         from sources import collector_for
         site_rows = [{"사이트": x["name"], "구분": x.get("category", ""), "주소": x["url"]} for x in current_sites()]
         site_edit = st.data_editor(
-            site_rows, num_rows="dynamic", hide_index=True, width="stretch", height=268, key="rule_sites",
+            site_rows, num_rows="dynamic", hide_index=True, width="stretch", height=256, key="rule_sites",
             column_config={"사이트": st.column_config.TextColumn("사이트", width="medium"),
                            "구분": st.column_config.TextColumn("구분", width="small"),
                            "주소": st.column_config.LinkColumn("주소", width="medium",

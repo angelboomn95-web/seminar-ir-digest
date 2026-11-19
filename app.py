@@ -149,6 +149,20 @@ def config_rules() -> dict:
             "exclude": r.get("exclude", []), "regions": r.get("regions", []), "weeks": int(r.get("weeks", 4))}
 
 
+def config_sites() -> list[dict]:
+    return [{"name": x["name"], "url": x["url"], "category": x.get("category", "")}
+            for x in json.loads((ROOT / "config.json").read_text(encoding="utf-8"))["sites"]
+            if x.get("status") != "제외"]
+
+
+def current_sites() -> list[dict]:
+    """수집할 사이트: 시트 '수집 사이트' 탭 → 없으면 config.json 기본값."""
+    if "sites" not in st.session_state:
+        saved = rc.load_sites(creds, SHEET_ID) if SHEET_ID else None
+        st.session_state.sites = saved or config_sites()
+    return st.session_state.sites
+
+
 def current_rules() -> dict:
     """수집에 쓸 필터 규칙: 시트 '필터 규칙' 탭 → 없으면 config.json 기본값."""
     if "rules" not in st.session_state:
@@ -168,7 +182,7 @@ with tab_ev:
         from collect import OUT, run
         today = datetime(base.year, base.month, base.day, tzinfo=KST)
         with st.spinner("사이트에서 행사를 모으는 중… (1~2분)"):
-            run(today, rules=current_rules())
+            run(today, rules=current_rules(), sites=current_sites())
         load_bundle(json.loads((OUT / f"upload_{today:%Y%m%d}.json").read_text(encoding="utf-8")))
         st.rerun()
     up = c3.file_uploader("또는 PC에서 수집한 결과 파일 올리기 (out/upload_날짜.json)", type=["json"])
@@ -335,25 +349,25 @@ with tab_rule:
         st.caption("아직 저장한 기준이 없어 기본 기준(config.json)을 보여 줍니다.")
 
     c0, c1, c2 = st.columns([1.2, 1, 1])
+    c0.markdown('<div style="font-size:14px;line-height:1.5;height:1.5rem;margin-bottom:-0.75rem">'
+                '수집 사이트 — 이곳들에서 행사를 모읍니다</div>', unsafe_allow_html=True)
     with c0:
         from sources import collector_for
-        sites = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))["sites"]
-        rows = []
-        for x in sites:
-            c = collector_for(x["url"]) if x.get("status") != "제외" else None
-            how = ("⛔ 제외" if x.get("status") == "제외" else
-                   "🔍 검색어로 수집" if c and c[1] else "✅ 자동 수집" if c else "👀 수동 확인")
-            rows.append({"사이트": x["name"], "수집": how, "구분": x.get("category") or "", "링크": x["url"]})
-        rows.sort(key=lambda r: ("👀" in r["수집"], "⛔" in r["수집"]))
-        n_auto = sum(1 for r in rows if "수동" not in r["수집"] and "제외" not in r["수집"])
-        n_manual = sum("수동" in r["수집"] for r in rows)
-        # 옆의 키워드 입력칸과 같은 모양: 작은 제목 + 같은 높이의 칸 + 아래 회색 설명
-        with st.container(gap=None):
-            st.markdown('<p style="font-size:14px;margin:0 0 0.25rem;line-height:1.6;min-height:1.5rem">'
-                        '수집 사이트 — 이곳들에서 행사를 모읍니다</p>', unsafe_allow_html=True)
-            st.dataframe(rows, hide_index=True, width="stretch", height=260,
-                         column_config={"링크": st.column_config.LinkColumn("링크", display_text="열기", width="small")})
-        st.caption(f"자동 {n_auto}곳 · 수동 확인 {n_manual}곳 · 사이트 추가·삭제는 config.json 수정 후 GitHub에 올리면 반영")
+        site_rows = [{"사이트": x["name"], "구분": x.get("category", ""), "주소": x["url"]} for x in current_sites()]
+        site_edit = st.data_editor(
+            site_rows, num_rows="dynamic", hide_index=True, width="stretch", height=268, key="rule_sites",
+            column_config={"사이트": st.column_config.TextColumn("사이트", width="medium"),
+                           "구분": st.column_config.TextColumn("구분", width="small"),
+                           "주소": st.column_config.LinkColumn("주소", width="medium",
+                                                             help="사이트 주소(https://…). 클릭하면 열립니다.")})
+        new_sites = [{"name": str(r.get("사이트") or "").strip(), "url": str(r.get("주소") or "").strip(),
+                      "category": str(r.get("구분") or "").strip()} for r in site_edit]
+        new_sites = [x for x in new_sites if x["name"] and x["url"]]
+        no_col = [x["name"] for x in new_sites if not collector_for(x["url"])]
+        st.caption(f"수집 사이트 {len(new_sites)}곳 · 맨 아래 빈 줄에 추가, 줄 선택 후 휴지통으로 삭제")
+        if no_col:
+            st.warning("아직 읽는 방법(수집기)이 없어 수집되지 않는 사이트: " + ", ".join(no_col)
+                       + " — 개발 요청이 필요합니다.")
     inc_txt = c1.text_area("포함 키워드 — 하나라도 들어 있어야 담습니다",
                            "\n".join(r["include"]), height=260, key="rule_inc",
                            help="한 줄에 하나(또는 쉼표로 구분). 영문(AI, IR, VC 등)은 단어 단위로 찾아 'FAIR' 같은 단어에 걸리지 않습니다.")
@@ -386,14 +400,19 @@ with tab_rule:
                "regions": regions, "weeks": weeks}
         if not new["include"]:
             st.error("포함 키워드가 하나도 없으면 아무 행사도 담기지 않습니다. 하나 이상 넣어 주세요.")
+        elif not new_sites:
+            st.error("수집 사이트가 하나도 없습니다. 하나 이상 넣어 주세요.")
         else:
             rc.save_rules(creds, SHEET_ID, new)
+            rc.save_sites(creds, SHEET_ID, new_sites)
+            st.session_state.sites = new_sites
             st.session_state.rules = new
             st.session_state.rules_from_sheet = True
             st.success("저장했습니다. '② 행사 확인 → 지금 수집하기'를 누르면 새 기준으로 다시 모읍니다.")
     if b2.button("기본값으로 되돌리기", width="stretch"):
         st.session_state.rules = config_rules()
-        for k in ("rule_search", "rule_inc", "rule_exc", "rule_regions", "rule_weeks"):
+        st.session_state.sites = config_sites()
+        for k in ("rule_search", "rule_inc", "rule_exc", "rule_regions", "rule_weeks", "rule_sites"):
             st.session_state.pop(k, None)
         st.rerun()
 

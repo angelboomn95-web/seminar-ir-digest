@@ -41,6 +41,17 @@ def sheet_rules() -> dict | None:
         return None
 
 
+def sheet_sites() -> list[dict] | None:
+    """앱 '수집 기준' 탭에서 저장한 수집 사이트(시트). 없으면 None → config.json."""
+    try:
+        from google_auth import load_creds
+        settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8"))
+        creds = load_creds()
+        return rc.load_sites(creds, settings["recipients_sheet_id"]) if creds else None
+    except Exception:
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--today")
@@ -64,7 +75,7 @@ def main() -> int:
 
     ok = True
     try:
-        kept, report = run(today, rules=sheet_rules())
+        kept, report = run(today, rules=sheet_rules(), sites=sheet_sites())
         errs = [r for r in report if r["error"] and "수동 확인" not in r["error"]]
         log(f"수집 완료: {len(kept)}건 / 사이트 오류 {len(errs)}곳")
         for r in errs:

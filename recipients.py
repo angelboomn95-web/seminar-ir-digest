@@ -156,3 +156,33 @@ def save_rules(creds, sheet_id: str, rules: dict) -> None:
     s.values().clear(spreadsheetId=sheet_id, range=f"{RULES_TAB}!A:B").execute()
     s.values().update(spreadsheetId=sheet_id, range=f"{RULES_TAB}!A1", valueInputOption="RAW",
                       body={"values": rows}).execute()
+
+
+# ---------------------------------------------------------------- 수집 사이트('수집 사이트' 탭)
+SITES_TAB = "수집 사이트"
+SITES_HEADER = ["사이트", "주소", "구분"]
+
+
+def load_sites(creds, sheet_id: str) -> list[dict] | None:
+    """시트에 저장된 수집 사이트. 탭이 없거나 비어 있으면 None(→ config.json 기본값)."""
+    try:
+        rows = _svc(creds).values().get(spreadsheetId=sheet_id, range=f"{SITES_TAB}!A2:C").execute().get("values", [])
+    except Exception:
+        return None
+    out = []
+    for r in rows:
+        r = (r + ["", "", ""])[:3]
+        if r[0].strip() and r[1].strip():
+            out.append({"name": r[0].strip(), "url": r[1].strip(), "category": r[2].strip()})
+    return out or None
+
+
+def save_sites(creds, sheet_id: str, sites: list[dict]) -> None:
+    s = _svc(creds)
+    if SITES_TAB not in _tabs(creds, sheet_id):
+        s.batchUpdate(spreadsheetId=sheet_id,
+                      body={"requests": [{"addSheet": {"properties": {"title": SITES_TAB}}}]}).execute()
+    rows = [SITES_HEADER] + [[x["name"], x["url"], x.get("category", "")] for x in sites]
+    s.values().clear(spreadsheetId=sheet_id, range=f"{SITES_TAB}!A:C").execute()
+    s.values().update(spreadsheetId=sheet_id, range=f"{SITES_TAB}!A1", valueInputOption="RAW",
+                      body={"values": rows}).execute()

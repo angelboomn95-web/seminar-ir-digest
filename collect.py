@@ -109,9 +109,25 @@ def same_event(a: str, b: str, same_time: bool = False) -> bool:
     return SequenceMatcher(None, a, b).ratio() >= (0.5 if same_time else 0.72)
 
 
-def run(today: datetime, rules: dict | None = None):
-    """rules를 주면(앱의 '수집 기준' 탭에서 저장한 값) config.json의 공통 규칙 대신 쓴다."""
+def merge_sites(cfg_sites: list[dict], sites: list[dict] | None) -> list[dict]:
+    """앱에서 고친 사이트 목록(이름·주소·구분)에 config.json의 사이트별 설정(include·exclude 등)을 붙인다."""
+    if not sites:
+        return cfg_sites
+    by_url = {s["url"].rstrip("/"): s for s in cfg_sites}
+    by_col = {}
+    for s in cfg_sites:
+        by_col.setdefault(collector_for(s["url"]), s)
+    out = []
+    for s in sites:
+        base = by_url.get(s["url"].rstrip("/")) or by_col.get(collector_for(s["url"])) or {}
+        out.append({**base, **s, "status": "후보"})
+    return out
+
+
+def run(today: datetime, rules: dict | None = None, sites: list[dict] | None = None):
+    """rules·sites를 주면(앱의 '수집 기준' 탭에서 저장한 값) config.json 기본값 대신 쓴다."""
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    cfg["sites"] = merge_sites(cfg["sites"], sites)
     rules = {**cfg["rules"], **(rules or {})}
     weeks = int(rules.get("weeks", 4))
     win_start = today.replace(hour=0, minute=0, second=0, microsecond=0)

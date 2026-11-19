@@ -226,11 +226,29 @@ def included_events() -> list[dict]:
 # ================================================================ 받는 사람
 with tab_to:
     if not SHEET_ID:
-        st.markdown("#### 받는 사람 목록 만들기")
+        st.markdown("#### 받는 사람 시트 연결")
         st.write("받는 사람은 구글 시트에 저장합니다. 앱 서버에는 파일을 오래 둘 수 없고, 코드 저장소는 공개라 "
-                 "이메일 주소를 넣을 수 없기 때문입니다. 아래 버튼을 누르면 내 드라이브에 "
-                 f"'{rc.TITLE}' 시트가 생깁니다.")
-        if st.button("받는 사람 시트 만들기", type="primary"):
+                 "이메일 주소를 넣을 수 없기 때문입니다.")
+        st.markdown(f"**이미 만든 시트가 있으면** 구글 드라이브에서 '{rc.TITLE}' 시트를 열고 주소창 링크를 붙여 넣으세요.")
+        cx1, cx2 = st.columns([4, 1])
+        link = cx1.text_input("시트 링크 또는 ID", label_visibility="collapsed",
+                              placeholder="https://docs.google.com/spreadsheets/d/…/edit")
+        if cx2.button("연결", type="primary", width="stretch", disabled=not link.strip()):
+            import re as _re
+            m = _re.search(r"/d/([A-Za-z0-9_-]{20,})", link) or _re.fullmatch(r"\s*([A-Za-z0-9_-]{20,})\s*", link)
+            if not m:
+                st.error("시트 링크에서 ID를 찾지 못했습니다. 주소창의 링크 전체를 붙여 넣어 주세요.")
+            else:
+                try:
+                    rc.load(creds, m.group(1))
+                    st.session_state.sheet_id = m.group(1)
+                    save_local_settings(recipients_sheet_id=m.group(1))
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"시트를 열지 못했습니다. 나에게 공유된 '{rc.TITLE}' 시트인지 확인해 주세요.\n\n{e}")
+        st.markdown("**처음이면** 새로 만드세요. 내 드라이브에 시트가 생깁니다.")
+        st.caption("이미 만든 적이 있는데 또 만들면 같은 이름의 빈 시트가 하나 더 생깁니다.")
+        if st.button("받는 사람 시트 새로 만들기"):
             sid = rc.create_sheet(creds)
             st.session_state.sheet_id = sid
             save_local_settings(recipients_sheet_id=sid)
@@ -244,8 +262,9 @@ with tab_to:
                          f"([시트 열기]({rc.sheet_url(SHEET_ID)}))\n\n{e}")
                 st.stop()
         if not secret("app", "recipients_sheet_id"):
-            st.info(f"시트를 만들었습니다. 팀원도 같은 목록을 쓰려면 Streamlit Secrets의 `[app]`에 "
-                    f"`recipients_sheet_id = \"{SHEET_ID}\"`를 넣고, 시트를 팀원과 '편집자'로 공유해 주세요.")
+            st.warning("⚠️ 이 시트는 **이번 접속에서만 기억됩니다.** 앱이 재시작되면(업데이트·한동안 미사용) 다시 연결해야 합니다. "
+                       "계속 쓰려면 Streamlit Secrets의 `[app]`에 아래 줄을 넣고, 시트를 팀원과 '편집자'로 공유해 주세요.")
+            st.code(f'recipients_sheet_id = "{SHEET_ID}"', language="toml")
         st.markdown(f"사람을 추가하려면 표 맨 아래 빈 줄에 입력하고 **저장**을 누르세요. "
                     f"'받기'를 해제하면 목록에는 남고 메일만 가지 않습니다. · [구글 시트에서 열기]({rc.sheet_url(SHEET_ID)})")
         people_edit = st.data_editor(

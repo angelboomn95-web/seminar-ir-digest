@@ -275,6 +275,22 @@
       "method": "확인 필요",
       "include": [],
       "exclude": []
+    },
+    {
+      "name": "자본시장연구원 세미나",
+      "url": "https://www.kcmi.re.kr/seminar/seminar_list",
+      "category": "증권·리서치",
+      "status": "후보",
+      "method": "HTML 목록",
+      "include": [
+        "세미나",
+        "심포지엄",
+        "포럼",
+        "콘퍼런스",
+        "컨퍼런스"
+      ],
+      "exclude": []
     }
-  ]
+  ],
+  "ipo_ir": true
 }

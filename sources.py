@@ -53,6 +53,26 @@ def _get(url, **kw):
     return r.text
 
 
+_KIRS_CA = None
+
+
+def _get_kirs(url):
+    """한국IR협의회 서버는 중간 인증서를 보내지 않아 파이썬 기본 검증이 실패한다(브라우저는 자동 보완).
+    빠진 GlobalSign 중간 인증서(certs/, 2027-05 만료)를 기본 인증서 묶음에 더해 정상 검증한다.
+    만료 후 오류가 나면 http://secure.globalsign.com/cacert/ 에서 새 중간 인증서를 받아 교체."""
+    global _KIRS_CA
+    if _KIRS_CA is None:
+        import certifi
+        import tempfile
+        from pathlib import Path
+        extra = (Path(__file__).parent / "certs" / "globalsign_alphassl_2025.pem").read_text()
+        f = tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False)
+        f.write(Path(certifi.where()).read_text() + chr(10) + extra)
+        f.close()
+        _KIRS_CA = f.name
+    return _get(url, verify=_KIRS_CA)
+
+
 def _text(el):
     return re.sub(r"\s+", " ", el.get_text(" ", strip=True)) if el else ""
 
@@ -430,6 +450,99 @@ def nextround(site, keywords, max_posts=10):
     return out
 
 
+# ---------------------------------------------------------------- 자본시장연구원 세미나
+_MON = {m: i for i, m in enumerate("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(), 1)}
+
+
+def kcmi(site, keywords):
+    """자본시장연구원 세미나 목록(연도별 한 페이지). 앞으로 열릴 세미나만 상세(프로그램) 페이지에서
+    '일시 : 2026년 11월 27일 (금), 15:00~17:30', '주최 : …'를 읽는다. 1년에 10건 안팎."""
+    base = "https://www.kcmi.re.kr/seminar/"
+    now = datetime.now(KST)
+    years = [now.year] + ([now.year + 1] if now.month >= 11 else [])
+    out = []
+    for y in years:
+        try:
+            soup = BeautifulSoup(_get(f"{base}seminar_list?syear={y}"), "html.parser")
+        except Exception:
+            if y == now.year:
+                raise
+            continue
+        for it in soup.select(".month_item-seminar"):
+            m = re.search(r"smidx_(\d+)", it.get("id", ""))
+            d = it.select_one(".date")
+            right = it.select_one(".link_right")
+            if not (m and d and right and right.strong):
+                continue
+            dm = re.search(r"(20\d\d)\s*([A-Za-z]{3})\s*(\d{1,2})", _text(d))
+            if not dm or dm.group(2).title() not in _MON:
+                continue
+            start = datetime(int(dm.group(1)), _MON[dm.group(2).title()], int(dm.group(3)), tzinfo=KST)
+            if start.date() < now.date():
+                continue
+            url = f"{base}seminar_program?eno={m.group(1)}"
+            ev = Event(site["name"], _text(right.strong), url, start, has_time=False, host="자본시장연구원",
+                       place=_text(right.find("b")), summary=_text(right.find("p")).rstrip(". ")[:120],
+                       tags=["세미나"])
+            try:  # 상세: 시간·주최
+                txt = " ".join(_lines(_get(url)))
+                im = re.search(r"일시\s*:?\s*(.{0,60})", txt)
+                if im:
+                    dt, ht = parse_kdatetime(im.group(1))
+                    if dt and dt.date() == start.date():
+                        ev.start, ev.has_time = dt, ht
+                        em = re.search(r"~\s*(\d{1,2}):(\d{2})", im.group(1))
+                        if ht and em:
+                            ev.end = dt.replace(hour=int(em.group(1)), minute=int(em.group(2)))
+                hm = re.search(r"주최\s*:?\s*(.+?)\s+(?:주관|후원|프로그램|참가신청|장소)", txt)
+                if hm:
+                    ev.host = hm.group(1).strip()[:60]
+            except Exception:
+                pass
+            ev.online = "온라인" in ev.place and "오프라인" not in ev.place
+            out.append(ev)
+    return out
+
+
+# ---------------------------------------------------------------- 한국IR협의회 IPO IR 일정(메일 하단 별도 목록)
+def kirs_ipo(start: datetime, end: datetime) -> list[dict]:
+    """코스닥 상장 예정 기업의 IPO IR 일정(한국IR협의회 IR캘린더). 행사 목록·캘린더에는 넣지 않고
+    메일 하단에 짧게 붙인다. 반환: [{'date': iso, 'has_time', 'company', 'kind', 'place', 'url'}]"""
+    cal = "https://www.kirs.or.kr/support/schedule.html"
+    months, cur = [], start.replace(day=1)
+    while cur <= end:
+        months.append((cur.year, cur.month))
+        cur = (cur + timedelta(days=32)).replace(day=1)
+    out, seen = [], set()
+    for y, mo in months:
+        t = _get_kirs(f"{cal}?year={y}&mon={mo}")
+        for day, cell in re.findall(r"<td valign=top class='[^']*'>\s*(\d{1,2})(.*?)</td>", t, re.S):
+            for no, name in re.findall(r"title='(\d+)'>([^<]+)</a>", cell):
+                if no in seen:
+                    continue
+                seen.add(no)
+                dt = datetime(y, mo, int(day), tzinfo=KST)
+                if not (start.date() <= dt.date() <= end.date()):
+                    continue
+                item = {"date": dt.isoformat(), "has_time": False, "company": html.unescape(name).strip(),
+                        "kind": "IPO IR", "place": "", "url": f"{cal}?year={y}&mon={mo}"}
+                try:
+                    L = _lines(_get_kirs(f"https://www.kirs.or.kr/function.php?template=E200&action=view_schedule&no={no}"))
+                    kv = {L[i]: L[i + 1] for i in range(len(L) - 1)
+                          if L[i] in ("회사명", "IR형태", "일자", "장소", "내용")}
+                    when, ht = parse_kdatetime(kv.get("일자", ""))
+                    if when:
+                        item["date"], item["has_time"] = when.isoformat(), ht
+                    item["kind"] = kv.get("IR형태") or "IPO IR"
+                    if kv.get("장소") and kv["장소"] not in ("내용",):
+                        item["place"] = kv["장소"]
+                except Exception:
+                    pass
+                out.append(item)
+    out.sort(key=lambda d: d["date"])
+    return out
+
+
 # 도메인 → 수집기
 COLLECTORS = {
     "onoffmix.com": (onoffmix, True),     # (함수, 검색 키워드 사용 여부)
@@ -440,6 +553,7 @@ COLLECTORS = {
     "kvic.or.kr": (kvic, False),
     "dcamp.kr": (dcamp, False),
     "kind.krx.co.kr": (kind, False),
+    "kcmi.re.kr": (kcmi, False),
 }
 
 

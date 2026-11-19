@@ -290,7 +290,10 @@ with tab_send:
     else:
         evs = included_events()
         today, s, e = _dt(b["today"]), _dt(b["winStart"]), _dt(b["winEnd"])
-        html = render_mail(evs, today, s, e, b.get("report", []), b.get("notices", []))
+        ipo = b.get("ipo") or []
+        use_ipo = st.checkbox(f"메일 하단에 IPO IR 일정 붙이기 ({len(ipo)}건 · 한국IR협의회, 캘린더에는 안 넣음)",
+                              value=bool(ipo), disabled=not ipo, key="use_ipo")
+        html = render_mail(evs, today, s, e, b.get("report", []), b.get("notices", []), ipo if use_ipo else None)
         ics = to_ics(evs)
         subject = subject_for(len(evs), s, e)
         people = st.session_state.get("people")

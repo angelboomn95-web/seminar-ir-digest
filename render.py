@@ -60,8 +60,20 @@ def _notice(ev: dict) -> str:
 </td></tr>"""
 
 
+def _ipo(it: dict) -> str:
+    d = _d(it["date"])
+    when = _md(d) + (f" {d:%H:%M}" if it.get("has_time") else "")
+    extra = f" · {escape(it['place'])}" if it.get("place") else ""
+    return f"""
+<tr><td style="padding:6px 0;border-bottom:1px solid {C_LINE};font-size:13px;">
+  <span style="color:{C_ACCENT};font-weight:bold;display:inline-block;min-width:110px;">{escape(when)}</span>
+  <a href="{escape(it['url'])}" style="color:{C_TEXT};text-decoration:none;font-weight:bold;">{escape(it['company'])}</a>
+  <span style="color:{C_MUTED};font-size:12px;"> {escape(it.get('kind') or 'IPO IR')}{extra}</span>
+</td></tr>"""
+
+
 def render_mail(events: list[dict], today: datetime, start: datetime, end: datetime, report: list[dict],
-                notices: list[dict] | None = None) -> str:
+                notices: list[dict] | None = None, ipo: list[dict] | None = None) -> str:
     # 주 단위로 묶기
     groups: dict[str, list[dict]] = {}
     for ev in events:
@@ -85,7 +97,14 @@ def render_mail(events: list[dict], today: datetime, start: datetime, end: datet
   border-left:3px solid {C_MUTED};padding-left:8px;">날짜 확인 필요 공지 <span style="color:{C_MUTED};font-weight:normal;">
   ({len(notices)}건 · 행사일이 첨부파일 등에만 있어 자동으로 읽지 못한 최근 공지)</span></div></td></tr>""")
         body.extend(_notice(n) for n in notices)
+    if ipo:
+        body.append(f"""
+<tr><td style="padding:26px 0 4px;"><div style="font-size:13px;font-weight:bold;color:{C_TEXT};
+  border-left:3px solid {C_MUTED};padding-left:8px;">IPO IR 일정 <span style="color:{C_MUTED};font-weight:normal;">
+  ({len(ipo)}건 · 코스닥 상장 예정 기업 설명회, 한국IR협의회 · 주로 기관투자자 대상이라 참고용)</span></div></td></tr>""")
+        body.extend(_ipo(i) for i in ipo)
 
+    report = [r for r in report if "IPO IR" not in r["site"]]  # 하단 IPO 목록은 사이트 수에서 뺀다
     manual = [r["site"] for r in report if r.get("error", "") and r["error"].startswith("수집기 없음")]
     failed = [f"{r['site']}" for r in report if r.get("error") and not r["error"].startswith("수집기 없음")]
     foot = f"수집 사이트 {sum(1 for r in report if not r.get('error'))}곳 자동 수집"
@@ -111,6 +130,6 @@ def render_mail(events: list[dict], today: datetime, start: datetime, end: datet
   {''.join(body)}
   <tr><td style="padding:24px 0 0;font-size:11px;color:{C_MUTED};line-height:1.6;background:#fff;">
     <div style="background:{C_BAND};padding:10px 12px;">{escape(foot)}<br>
-    수집 사이트·키워드는 '세미나·IR 수집 소스' 페이지에서 조정합니다.</div>
+    수집 사이트·키워드는 세미나·IR 앱의 '수집 기준' 탭에서 조정합니다.</div>
     <div style="padding-top:12px;">Copyright {today:%Y} 디캠프, All rights reserved.</div></td></tr>
 </table></td></tr></table></body></html>"""

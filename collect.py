@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from sources import KST, collector_for
+from sources import KST, collector_for, kirs_ipo
 from render import render_mail
 from calendar_ics import event_key, to_ics
 
@@ -206,15 +206,26 @@ def run(today: datetime, rules: dict | None = None, sites: list[dict] | None = N
         report.append(row)
 
     kept.sort(key=lambda d: d["start"])
+
+    # 한국IR협의회 IPO IR 일정: 행사 목록·캘린더와 별도로 메일 하단에 짧게 붙인다(config.json "ipo_ir")
+    ipo = []
+    if cfg.get("ipo_ir", True):
+        row = {"site": "한국IR협의회 IPO IR(메일 하단)", "collected": 0, "kept": 0, "dropped": {}, "error": None}
+        try:
+            ipo = kirs_ipo(win_start, win_end - timedelta(days=1))
+            row["collected"] = row["kept"] = len(ipo)
+        except Exception as e:
+            row["error"] = f"{type(e).__name__}: {e}"
+        report.append(row)
     OUT.mkdir(exist_ok=True)
     stamp = today.strftime("%Y%m%d")
     (OUT / f"events_{stamp}.json").write_text(json.dumps(kept, ensure_ascii=False, indent=2), encoding="utf-8")
     (OUT / f"report_{stamp}.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     notices.sort(key=lambda d: d["posted"], reverse=True)
-    html = render_mail(kept, today, win_start, win_end - timedelta(days=1), report, notices)
+    html = render_mail(kept, today, win_start, win_end - timedelta(days=1), report, notices, ipo)
     (OUT / f"mail_{stamp}.html").write_text(html, encoding="utf-8")
     (OUT / f"events_{stamp}.ics").write_text(to_ics(kept), encoding="utf-8", newline="")
-    write_upload(stamp, today, win_start, win_end - timedelta(days=1), kept, notices, report)
+    write_upload(stamp, today, win_start, win_end - timedelta(days=1), kept, notices, report, ipo)
     return kept, report
 
 
@@ -225,7 +236,7 @@ def _slim(d: dict) -> dict:
     return d
 
 
-def write_upload(stamp, today, start, end, kept, notices, report) -> Path:
+def write_upload(stamp, today, start, end, kept, notices, report, ipo=None) -> Path:
     """'세미나·IR' 페이지의 '수집 결과 올리기'에 넣는 묶음 파일 (행사·공지·사이트별 결과)."""
     bundle = {
         "kind": "seminar-ir-upload", "version": 1, "stamp": stamp,
@@ -234,6 +245,7 @@ def write_upload(stamp, today, start, end, kept, notices, report) -> Path:
         "events": [{**_slim(e), "key": event_key(e)} for e in kept],
         "notices": [_slim(n) for n in notices],
         "report": report,
+        "ipo": ipo or [],
     }
     path = OUT / f"upload_{stamp}.json"
     path.write_text(json.dumps(bundle, ensure_ascii=False), encoding="utf-8")

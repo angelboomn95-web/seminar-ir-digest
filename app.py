@@ -127,7 +127,10 @@ if top[1].button("로그아웃", width="stretch"):
         del st.session_state[k]
     st.rerun()
 
-SHEET_ID = secret("app", "recipients_sheet_id") or st.session_state.get("sheet_id") or local_settings().get("recipients_sheet_id", "")
+# 시트 ID는 비밀값이 아니다(시트 자체가 공유 권한으로 보호됨). Secrets가 없으면 config.json 값을 쓴다.
+SHEET_ID = (secret("app", "recipients_sheet_id") or st.session_state.get("sheet_id")
+            or json.loads((ROOT / "config.json").read_text(encoding="utf-8")).get("recipients_sheet_id", "")
+            or local_settings().get("recipients_sheet_id", ""))
 CALENDAR_ID = secret("app", "calendar_id") or local_settings().get("calendar_id", "")
 
 
@@ -261,7 +264,8 @@ with tab_to:
                 st.error("받는 사람 시트를 읽지 못했습니다. 시트가 나에게 공유돼 있는지 확인해 주세요. "
                          f"([시트 열기]({rc.sheet_url(SHEET_ID)}))\n\n{e}")
                 st.stop()
-        if not secret("app", "recipients_sheet_id"):
+        if not (secret("app", "recipients_sheet_id")
+                or json.loads((ROOT / "config.json").read_text(encoding="utf-8")).get("recipients_sheet_id")):
             st.warning("⚠️ 이 시트는 **이번 접속에서만 기억됩니다.** 앱이 재시작되면(업데이트·한동안 미사용) 다시 연결해야 합니다. "
                        "계속 쓰려면 Streamlit Secrets의 `[app]`에 아래 줄을 넣고, 시트를 팀원과 '편집자'로 공유해 주세요.")
             st.code(f'recipients_sheet_id = "{SHEET_ID}"', language="toml")

@@ -54,7 +54,7 @@ python run_weekly.py --no-calendar  # 메일만
 3. **Streamlit Cloud** (share.streamlit.io): 이 저장소 연결, Main file `app.py`로 배포 → 앱 주소 확인.
 4. **OAuth 클라이언트 ID** → 유형 **웹 애플리케이션** → 승인된 리디렉션 URI에 앱 주소(끝 `/` 포함) 등록.
 5. 앱 Settings → **Secrets**에 `.streamlit/secrets.toml.example` 내용을 채워 붙여넣기 (`client_id`, `client_secret`, `redirect_uri`).
-6. 앱에 로그인 → **④ 받는 사람** → '받는 사람 시트 만들기' → 나온 시트 ID를 Secrets의 `[app] recipients_sheet_id`에 넣고, 시트를 팀원과 '편집자'로 공유.
+6. 앱에 로그인 → **④ 받는 사람** → '받는 사람 시트 만들기' → 나온 시트 ID를 `config.json`의 `recipients_sheet_id`(또는 Secrets `[app]`)에 넣고, 시트를 팀원과 '편집자'로 공유.
 7. **⑤ 보내기**에서 캘린더 등록을 한 번 하면 '세미나·IR' 캘린더가 생긴다 → 구글 캘린더 설정에서 팀원과 공유.
 
 로컬 PC에서 쓸 때(주간 자동 실행 `run_weekly.py` 포함): OAuth 클라이언트를 **데스크톱 앱** 유형으로 하나 더 만들어 `credentials.json`으로 저장 → `streamlit run app.py`로 한 번 로그인하면 `token.json`이 생긴다.
@@ -84,3 +84,4 @@ python run_weekly.py --no-calendar  # 메일만
 - 2026-11-19: 수집 사이트를 앱에서 추가·삭제(시트 '수집 사이트' 탭에 저장). 수집기가 없는 '수동 확인' 8곳은 목록에서 삭제(자동 수집 8곳만 유지). 수집기가 없는 사이트를 추가하면 경고 표시.
 - 2026-11-19: 포함 키워드에 산업 분류(반도체~리빙 39개, 한·영) 추가, 기존 키워드 영문판 추가(18개 → 144개). 이상 항목 '멘토링 미디어 임시값' 삭제. 수집 결과 30건.
 - 2026-11-19: 자본시장연구원 세미나 수집기 추가(4주 2건: VC 지원 정책, 베어허그 제도). 한국IR협의회 IPO IR 일정을 메일 하단 별도 목록으로 추가(4주 7건, 캘린더 제외, 앱에서 켜고 끌 수 있음 — 팀회의에서 유지 여부 결정). 총 33건.
+- 2026-11-19: 받는 사람 시트 ID를 config.json에 고정(Secrets 미등록으로 앱 재시작 때마다 시트를 잊던 문제). 시트 ID는 비밀값이 아니며 시트는 공유 권한으로 보호.

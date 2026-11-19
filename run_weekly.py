@@ -30,13 +30,20 @@ ROOT = Path(__file__).parent
 LOGS = ROOT / "logs"
 
 
+def sheet_id() -> str:
+    """받는 사람 시트: config.json → (없으면) 로컬 settings.json."""
+    sid = json.loads((ROOT / "config.json").read_text(encoding="utf-8")).get("recipients_sheet_id", "")
+    if not sid and (ROOT / "settings.json").exists():
+        sid = json.loads((ROOT / "settings.json").read_text(encoding="utf-8")).get("recipients_sheet_id", "")
+    return sid
+
+
 def sheet_rules() -> dict | None:
     """앱 '수집 기준' 탭에서 저장한 규칙(시트). 로그인·시트가 없으면 None → config.json 기본값."""
     try:
         from google_auth import load_creds
-        settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8"))
         creds = load_creds()
-        return rc.load_rules(creds, settings["recipients_sheet_id"]) if creds else None
+        return rc.load_rules(creds, sheet_id()) if creds and sheet_id() else None
     except Exception:
         return None
 
@@ -45,9 +52,8 @@ def sheet_sites() -> list[dict] | None:
     """앱 '수집 기준' 탭에서 저장한 수집 사이트(시트). 없으면 None → config.json."""
     try:
         from google_auth import load_creds
-        settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8"))
         creds = load_creds()
-        return rc.load_sites(creds, settings["recipients_sheet_id"]) if creds else None
+        return rc.load_sites(creds, sheet_id()) if creds and sheet_id() else None
     except Exception:
         return None
 
@@ -101,8 +107,7 @@ def main() -> int:
         else:
             creds = require_creds()
             me = user_email(creds)
-            settings = json.loads((ROOT / "settings.json").read_text(encoding="utf-8")) if (ROOT / "settings.json").exists() else {}
-            sid = settings.get("recipients_sheet_id", "")
+            sid = sheet_id()
             to = [p["이메일"] for p in rc.active(rc.load(creds, sid))] if sid else []
             to = to or [me]  # 받는 사람이 없으면 나에게만
             subject = subject_for(len(kept), today, today + timedelta(weeks=weeks) - timedelta(days=1))

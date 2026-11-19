@@ -348,6 +348,8 @@ with tab_rule:
     elif not st.session_state.get("rules_from_sheet"):
         st.caption("아직 저장한 기준이 없어 기본 기준(config.json)을 보여 줍니다.")
 
+    # 기본값으로 되돌릴 때 입력칸을 새로 만들도록 키에 버전 번호를 붙인다(화면에 예전 글자가 남는 문제 방지)
+    rv = st.session_state.get("rule_ver", 0)
     c0, c1, c2 = st.columns([1.2, 1, 1])
     c0.markdown('<div style="font-size:14px;line-height:1.5">'
                 '수집 사이트 — 이곳들에서 행사를 모읍니다</div>', unsafe_allow_html=True)
@@ -355,7 +357,7 @@ with tab_rule:
         from sources import collector_for
         site_rows = [{"사이트": x["name"], "구분": x.get("category", ""), "주소": x["url"]} for x in current_sites()]
         site_edit = st.data_editor(
-            site_rows, num_rows="dynamic", hide_index=True, width="stretch", height=256, key="rule_sites",
+            site_rows, num_rows="dynamic", hide_index=True, width="stretch", height=256, key=f"rule_sites_{rv}",
             column_config={"사이트": st.column_config.TextColumn("사이트", width="medium"),
                            "구분": st.column_config.TextColumn("구분", width="small"),
                            "주소": st.column_config.LinkColumn("주소", width="medium",
@@ -369,24 +371,24 @@ with tab_rule:
             st.warning("아직 읽는 방법(수집기)이 없어 수집되지 않는 사이트: " + ", ".join(no_col)
                        + " — 개발 요청이 필요합니다.")
     inc_txt = c1.text_area("포함 키워드 — 하나라도 들어 있어야 담습니다",
-                           "\n".join(r["include"]), height=260, key="rule_inc",
+                           "\n".join(r["include"]), height=260, key=f"rule_inc_{rv}",
                            help="한 줄에 하나(또는 쉼표로 구분). 영문(AI, IR, VC 등)은 단어 단위로 찾아 'FAIR' 같은 단어에 걸리지 않습니다.")
     exc_txt = c2.text_area("제외 키워드 — 하나라도 들어 있으면 뺍니다",
-                           "\n".join(r["exclude"]), height=260, key="rule_exc",
+                           "\n".join(r["exclude"]), height=260, key=f"rule_exc_{rv}",
                            help="포함 키워드보다 먼저 적용됩니다. 예: 채용, 재테크, 지원사업 설명회")
     c1.caption(f"{len(_split(inc_txt))}개 · 예: VC, 벤처투자, M&A, IPO, 세컨더리, IR, 데모데이, 산업 동향, AI, 딥테크")
     c2.caption(f"{len(_split(exc_txt))}개 · 예: 채용박람회, 잡페어, 지원사업 설명회, 창업교육")
 
     search_txt = st.text_input("행사 플랫폼 검색어 — 온오프믹스·이벤터스에서 이 단어로 찾은 뒤 위 키워드로 거릅니다",
-                               ", ".join(r["search"]), key="rule_search",
+                               ", ".join(r["search"]), key=f"rule_search_{rv}",
                                help="넓은 단어(AI, 세미나 등)를 넣으면 관련 없는 일반 행사가 크게 늘어납니다. 투자 관련 단어 위주로 넣으세요.")
     c3, c4 = st.columns(2)
     region_opts = list(dict.fromkeys(["서울", "온라인"] + r["regions"]))
     regions = c3.multiselect("지역 — 장소가 이 지역이거나 온라인이면 담습니다", region_opts, default=r["regions"],
-                             accept_new_options=True, key="rule_regions",
+                             accept_new_options=True, key=f"rule_regions_{rv}",
                              help="'온라인'을 빼면 온라인 행사는 담지 않습니다. 장소에 지역명이 없으면(예: 호텔 이름만) 다른 지역이 적혀 있을 때만 뺍니다.")
     weeks = c4.selectbox("메일에 담을 기간", [2, 3, 4, 5, 6], index=[2, 3, 4, 5, 6].index(r["weeks"]) if r["weeks"] in (2, 3, 4, 5, 6) else 2,
-                         format_func=lambda w: f"기준일부터 {w}주", key="rule_weeks")
+                         format_func=lambda w: f"기준일부터 {w}주", key=f"rule_weeks_{rv}")
 
     with st.expander("기준과 상관없이 항상 빼는 것"):
         st.markdown("- 창업자·기업 대상 **참가자 모집 공고** ('참가기업 모집', 'N기 모집' 등 — '청중평가단 모집', '참관 신청'은 남김)\n"
@@ -412,8 +414,7 @@ with tab_rule:
     if b2.button("기본값으로 되돌리기", width="stretch"):
         st.session_state.rules = config_rules()
         st.session_state.sites = config_sites()
-        for k in ("rule_search", "rule_inc", "rule_exc", "rule_regions", "rule_weeks", "rule_sites"):
-            st.session_state.pop(k, None)
+        st.session_state.rule_ver = st.session_state.get("rule_ver", 0) + 1
         st.rerun()
 
 

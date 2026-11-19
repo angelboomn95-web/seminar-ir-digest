@@ -334,7 +334,24 @@ with tab_rule:
     elif not st.session_state.get("rules_from_sheet"):
         st.caption("아직 저장한 기준이 없어 기본 기준(config.json)을 보여 줍니다.")
 
-    c1, c2 = st.columns(2)
+    c0, c1, c2 = st.columns([1.2, 1, 1])
+    with c0:
+        from sources import collector_for
+        sites = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))["sites"]
+        rows = []
+        for x in sites:
+            c = collector_for(x["url"]) if x.get("status") != "제외" else None
+            how = ("⛔ 제외" if x.get("status") == "제외" else
+                   "🔍 검색어로 수집" if c and c[1] else "✅ 자동 수집" if c else "👀 수동 확인")
+            rows.append({"사이트": x["name"], "수집": how, "구분": x.get("category") or "", "링크": x["url"]})
+        rows.sort(key=lambda r: ("👀" in r["수집"], "⛔" in r["수집"]))
+        n_auto = sum(1 for r in rows if "수동" not in r["수집"] and "제외" not in r["수집"])
+        st.markdown(f"**수집 사이트** — 자동 {n_auto}곳 · 수동 확인 {sum('수동' in r['수집'] for r in rows)}곳",
+                    help="'자동 수집'은 공고 목록 전체를 읽고, '검색어로 수집'은 아래 플랫폼 검색어로 찾습니다. "
+                         "'수동 확인'은 아직 수집기가 없는 곳이라 직접 들어가 봐야 합니다. "
+                         "사이트 추가·삭제는 config.json을 고쳐 GitHub에 올리면 반영됩니다.")
+        st.dataframe(rows, hide_index=True, width="stretch", height=290,
+                     column_config={"링크": st.column_config.LinkColumn("링크", display_text="열기", width="small")})
     inc_txt = c1.text_area("포함 키워드 — 하나라도 들어 있어야 담습니다",
                            "\n".join(r["include"]), height=260, key="rule_inc",
                            help="한 줄에 하나(또는 쉼표로 구분). 영문(AI, IR, VC 등)은 단어 단위로 찾아 'FAIR' 같은 단어에 걸리지 않습니다.")

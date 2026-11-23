@@ -3,13 +3,14 @@
 두 가지 방식:
 - 웹(Streamlit Cloud): Secrets의 [oauth] 웹 클라이언트로 각자 자기 계정에 로그인. 로그인 정보는 그 사람의 세션에만 있다.
 - 로컬 PC: credentials.json(데스크톱 앱 클라이언트)로 한 번 로그인 → token.json 저장.
-  주간 자동 실행(run_weekly.py)은 이 token.json을 쓴다.
+  주간 자동 실행(run_weekly.py)은 GitHub Actions에서는 환경변수 토큰, PC에서는 token.json을 쓴다.
 
 권한: 메일 보내기(gmail.send), 캘린더(calendar), 수신자 시트(spreadsheets), 로그인 이메일 확인.
 """
 from __future__ import annotations
 
 import json
+import os
 import urllib.parse
 from pathlib import Path
 
@@ -79,8 +80,22 @@ def creds_from_json(s: str) -> Credentials:
 
 
 # ---------------------------------------------------------------- 로컬 PC
+def env_creds() -> Credentials | None:
+    """GitHub Actions 자동 발송: 저장소 Secrets(GOOGLE_CLIENT_ID·SECRET·REFRESH_TOKEN)로 로그인."""
+    rt, cid, cs = (os.environ.get(k, "").strip() for k in
+                   ("GOOGLE_REFRESH_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"))
+    if not (rt and cid and cs):
+        return None
+    creds = Credentials(token=None, refresh_token=rt, token_uri=TOKEN_URI, client_id=cid, client_secret=cs,
+                        scopes=SCOPES)
+    creds.refresh(Request())
+    return creds
+
+
 def load_creds() -> Credentials | None:
-    """저장된 로그인 정보(token.json). 만료됐으면 자동 갱신. 없거나 권한이 바뀌었으면 None."""
+    """로그인 정보: 환경변수(GitHub Actions) → token.json(로컬 PC). 만료됐으면 자동 갱신."""
+    if os.environ.get("GOOGLE_REFRESH_TOKEN"):
+        return env_creds()  # 토큰이 잘못됐으면 여기서 오류가 나서 원인이 로그에 남는다
     if not TOKEN_FILE.exists():
         return None
     try:
@@ -104,7 +119,8 @@ def load_creds() -> Credentials | None:
 def require_creds() -> Credentials:
     creds = load_creds()
     if not creds:
-        raise NotLoggedIn("구글 로그인이 필요합니다. PC에서 'streamlit run app.py'로 앱을 열고 로그인하세요")
+        raise NotLoggedIn("구글 로그인이 필요합니다. GitHub Actions라면 저장소 Secrets(GOOGLE_CLIENT_ID·SECRET·REFRESH_TOKEN)를, "
+                          "PC라면 'streamlit run app.py'로 로그인했는지 확인하세요")
     return creds
 
 

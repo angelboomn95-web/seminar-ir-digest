@@ -20,13 +20,16 @@
 | `notify.py` | 로그인한 Gmail 계정으로 메일 발송(.ics 첨부), '세미나·IR' 캘린더 찾기/생성·등록(같은 키로 중복 방지, 이번 수집에 없는 앞으로의 일정은 삭제) |
 | `.streamlit/secrets.toml.example` | Streamlit Secrets 템플릿 (`[oauth]`, `[app]`) |
 | `run_weekly.py` | 주간 실행: 수집 → 캘린더 등록 → 메일 발송, `logs/run_*.log` 기록 |
+| `.github/workflows/weekly.yml` | **매주 월 09:00 자동 발송**(GitHub Actions). 저장소 Secrets의 구글 토큰으로 `run_weekly.py` 실행 |
 | `out/` | 실행 결과 (`events_*.json`, `report_*.json`, `mail_*.html`) |
 
 ## 주간 운영
+**자동:** 매주 월요일 09:00(KST)에 GitHub Actions가 향후 **2주** 일정을 수집 → '세미나·IR' 캘린더 정리 → 받는 사람에게 메일 발송. 아래 앱은 확인·수동 발송·기준 수정용.
+
 앱 주소: https://seminar-ir-digest.streamlit.app/ (@dcamp.kr 구글 계정으로 로그인)
 
 1. 앱(Streamlit) 접속 → **Google 계정으로 로그인** (@dcamp.kr).
-2. **① 수집 기준**(필요할 때): 수집 사이트(추가·삭제)·플랫폼 검색어·포함/제외 키워드·지역·기간을 고치고 저장 → 시트 '필터 규칙' 탭에 저장되고 다음 수집부터 적용. 저장한 기준이 없으면 `config.json` 기본값.
+2. **① 수집 기준**(필요할 때): 수집 사이트(추가·삭제)·플랫폼 검색어·포함/제외 키워드·지역을 고치고 저장 → 시트 '필터 규칙' 탭에 저장되고 다음 수집부터 적용. 저장한 기준이 없으면 `config.json` 기본값.
 3. **② 행사 확인**: '지금 수집하기'(약 1분) 또는 PC에서 만든 `out/upload_날짜.json` 올리기 → 뺄 행사는 '포함' 해제.
 4. **③ 수집 결과**: 사이트별 수집·통과 건수와 오류 확인(0건인 사이트가 있으면 점검).
 5. **④ 받는 사람**: 표에서 추가·수정·'받기' 체크 후 저장. 아래 '실제로 메일을 받는 사람'이 최종 발송 목록.
@@ -59,6 +62,15 @@ python run_weekly.py --no-calendar  # 메일만
 
 로컬 PC에서 쓸 때(주간 자동 실행 `run_weekly.py` 포함): OAuth 클라이언트를 **데스크톱 앱** 유형으로 하나 더 만들어 `credentials.json`으로 저장 → `streamlit run app.py`로 한 번 로그인하면 `token.json`이 생긴다.
 
+## 자동 발송 설정 (GitHub Actions)
+1. 앱 '⑤ 보내기' 맨 아래 **매주 자동 발송 설정**에서 내 토큰(`GOOGLE_REFRESH_TOKEN`) 확인.
+2. GitHub 저장소 → Settings → Secrets and variables → Actions에 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`(Streamlit Secrets `[oauth]`와 같은 값), `GOOGLE_REFRESH_TOKEN` 등록.
+3. Actions → '주간 세미나·IR 메일' → Run workflow: `나에게만(테스트)` / `받는 사람 전체` / `발송 없이 확인`.
+- 메일은 토큰 주인의 Gmail로 나간다. **담당자가 바뀌면** 새 담당자가 앱에서 자기 토큰을 꺼내 `GOOGLE_REFRESH_TOKEN`을 교체.
+- 실패하면 GitHub이 저장소 관리자에게 메일로 알린다. Actions 탭의 실행 기록에서 `[오류]`·`[실패]`·`[중단]` 줄 확인.
+- GitHub은 **저장소에 60일간 커밋이 없으면 정기 실행을 멈춘다** → Actions 탭에서 'Enable workflow'를 누르거나 아무 커밋이나 하면 다시 돈다.
+- 저장소가 공개라 실행 기록도 공개된다. 로그에는 건수·사이트명만 남고 이메일 주소는 남지 않는다.
+
 ## 운영 메모
 - 수집 사이트·키워드를 바꾸려면: 수집 소스 페이지에서 수정 → '수집기 설정(config.json)' 저장 → 저장소의 `config.json` 교체 후 커밋(Streamlit Cloud는 저장소 내용으로 다시 배포됨).
 - 받는 사람 추가·삭제: 앱 '④ 받는 사람' 탭 또는 구글 시트에서 직접. 발송 기록은 시트의 '발송기록' 탭.
@@ -85,3 +97,4 @@ python run_weekly.py --no-calendar  # 메일만
 - 2026-11-19: 포함 키워드에 산업 분류(반도체~리빙 39개, 한·영) 추가, 기존 키워드 영문판 추가(18개 → 144개). 이상 항목 '멘토링 미디어 임시값' 삭제. 수집 결과 30건.
 - 2026-11-19: 자본시장연구원 세미나 수집기 추가(4주 2건: VC 지원 정책, 베어허그 제도). 한국IR협의회 IPO IR 일정을 메일 하단 별도 목록으로 추가(4주 7건, 캘린더 제외, 앱에서 켜고 끌 수 있음 — 팀회의에서 유지 여부 결정). 총 33건.
 - 2026-11-19: 받는 사람 시트 ID를 config.json에 고정(Secrets 미등록으로 앱 재시작 때마다 시트를 잊던 문제). 시트 ID는 비밀값이 아니며 시트는 공유 권한으로 보호.
+- 2026-11-23: 수집 기간을 2주로 통일(config.json `rules.weeks`, 앱에서는 고정 표시). GitHub Actions 매주 월 09:00 자동 발송 추가(테스트·전체·확인 모드), 앱에 자동 발송용 토큰 확인 화면 추가.

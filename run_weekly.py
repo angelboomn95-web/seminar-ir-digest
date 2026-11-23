@@ -4,10 +4,12 @@
     python run_weekly.py                  # 실제 발송 + 캘린더 등록
     python run_weekly.py --no-calendar    # 메일만
     python run_weekly.py --no-mail        # 캘린더만
+    python run_weekly.py --to-me          # 나에게만 발송(테스트)
     python run_weekly.py --today 2026-11-16
 
 실행 기록: logs/run_YYYYMMDD.log
-발송·등록에는 구글 로그인(token.json)이 필요하다. PC에서 app.py를 열어 한 번 로그인하면 된다.
+발송·등록에는 구글 로그인이 필요하다. GitHub Actions(.github/workflows/weekly.yml)는 저장소 Secrets의 토큰을,
+PC는 app.py로 한 번 로그인해 생긴 token.json을 쓴다. 로그에는 이메일 주소를 남기지 않는다(저장소가 공개).
 받는 사람은 settings.json의 recipients_sheet_id 시트에서 읽는다(앱에서 시트를 만들면 자동 저장).
 """
 from __future__ import annotations
@@ -64,6 +66,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-mail", action="store_true")
     ap.add_argument("--no-calendar", action="store_true")
+    ap.add_argument("--to-me", action="store_true", help="받는 사람 대신 나에게만 발송(테스트)")
     a = ap.parse_args()
 
     today = datetime.strptime(a.today, "%Y-%m-%d").replace(tzinfo=KST) if a.today else datetime.now(KST)
@@ -100,7 +103,7 @@ def main() -> int:
             ok &= not res["failed"]
 
         cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-        weeks = int((cfg.get("rules") or {}).get("weeks") or 4)
+        weeks = int((cfg.get("rules") or {}).get("weeks") or 2)
         html = (OUT / f"mail_{stamp}.html").read_text(encoding="utf-8")
         if a.no_mail or a.dry_run:
             log(f"메일 발송 건너뜀 (미리보기: out/mail_{stamp}.html)")
@@ -109,10 +112,12 @@ def main() -> int:
             me = user_email(creds)
             sid = sheet_id()
             to = [p["이메일"] for p in rc.active(rc.load(creds, sid))] if sid else []
-            to = to or [me]  # 받는 사람이 없으면 나에게만
+            to = [me] if a.to_me else (to or [me])  # 테스트이거나 받는 사람이 없으면 나에게만
             subject = subject_for(len(kept), today, today + timedelta(weeks=weeks) - timedelta(days=1))
+            if a.to_me:
+                subject = "[테스트] " + subject
             send_mail(creds, build_message(me, to, html, to_ics(kept), subject, f"세미나IR_{stamp}.ics"))
-            if sid:
+            if sid and not a.to_me:
                 rc.log_send(creds, sid, me, to, subject)
             log(f"메일 발송: {len(to)}명 / {subject}")
     except Exception:

@@ -1,0 +1,56 @@
+# 매주 월요일 09:00(KST) 자동 실행: 수집 → '세미나·IR' 캘린더 정리 → 받는 사람에게 메일 발송.
+# 필요한 저장소 Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+#   (토큰은 앱 '⑤ 보내기' 탭 맨 아래 '매주 자동 발송 설정'에서 확인)
+# 저장소가 공개라 실행 기록도 공개된다. run_weekly.py는 건수·사이트명만 남기고 이메일 주소는 남기지 않는다.
+name: 주간 세미나·IR 메일
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"   # UTC 월 00:00 = KST 월 09:00 (GitHub 사정으로 수십 분 늦게 시작될 수 있음)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "실행 방식"
+        type: choice
+        options:
+          - 나에게만(테스트)
+          - 받는 사람 전체
+          - 발송 없이 확인
+        default: 나에게만(테스트)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-mail
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install requests beautifulsoup4 google-api-python-client google-auth
+      - name: 수집 · 캘린더 · 메일
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          MODE: ${{ inputs.mode }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          if [ -z "$GOOGLE_REFRESH_TOKEN" ]; then
+            echo "::error::저장소 Secrets에 GOOGLE_REFRESH_TOKEN이 없습니다. 앱 '⑤ 보내기 → 매주 자동 발송 설정'을 참고하세요."
+            exit 1
+          fi
+          case "$MODE" in
+            "나에게만(테스트)") ARGS="--to-me" ;;
+            "발송 없이 확인") ARGS="--dry-run" ;;
+            *) ARGS="" ;;   # 정기 실행(월요일)과 '받는 사람 전체'
+          esac
+          python run_weekly.py $ARGS

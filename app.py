@@ -149,7 +149,7 @@ def load_bundle(b: dict) -> None:
 def config_rules() -> dict:
     r = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))["rules"]
     return {"search": r.get("search", ["VC", "투자", "IR", "데모데이"]), "include": r.get("include", []),
-            "exclude": r.get("exclude", []), "regions": r.get("regions", []), "weeks": int(r.get("weeks", 4))}
+            "exclude": r.get("exclude", []), "regions": r.get("regions", []), "weeks": int(r.get("weeks", 2))}
 
 
 def config_sites() -> list[dict]:
@@ -358,6 +358,23 @@ with tab_send:
         st.markdown("#### 메일 미리보기")
         st.iframe(html, height=900)
 
+        with st.expander("⚙️ 매주 자동 발송 설정 (GitHub Actions · 처음 한 번)"):
+            st.markdown(
+                "매주 **월요일 09:00**에 GitHub 서버가 수집 → '세미나·IR' 캘린더 정리 → 받는 사람에게 메일 발송을 자동으로 합니다. "
+                "메일은 아래 토큰 주인의 Gmail로 나갑니다.\n\n"
+                "1. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**에서 세 개를 만듭니다.\n"
+                "   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Streamlit Secrets `[oauth]`의 값을 그대로 복사\n"
+                "   - `GOOGLE_REFRESH_TOKEN`: 아래 체크박스를 누르면 보이는 값\n"
+                "2. 저장소 **Actions → 주간 세미나·IR 메일 → Run workflow**에서 '나에게만(테스트)'로 한 번 돌려 확인합니다.\n\n"
+                "토큰은 내 메일·캘린더 권한이라 **채팅·문서에 붙여 넣지 말고** GitHub Secrets에만 넣으세요. "
+                "담당자가 바뀌면 새 담당자가 여기서 자기 토큰을 꺼내 바꿔 넣으면 됩니다.")
+            if st.checkbox(f"내 계정({me})의 자동 발송용 토큰을 보겠습니다", key="show_token"):
+                rt = getattr(creds, "refresh_token", None)
+                if rt:
+                    st.code(rt, language=None)
+                else:
+                    st.warning("토큰이 없습니다. 로그아웃 후 다시 로그인하면 생깁니다.")
+
 
 # ================================================================ 수집 기준
 def _split(s: str) -> list[str]:
@@ -413,8 +430,9 @@ with tab_rule:
     regions = c3.multiselect("지역 — 장소가 이 지역이거나 온라인이면 담습니다", region_opts, default=r["regions"],
                              accept_new_options=True, key=f"rule_regions_{rv}",
                              help="'온라인'을 빼면 온라인 행사는 담지 않습니다. 장소에 지역명이 없으면(예: 호텔 이름만) 다른 지역이 적혀 있을 때만 뺍니다.")
-    weeks = c4.selectbox("메일에 담을 기간", [2, 3, 4, 5, 6], index=[2, 3, 4, 5, 6].index(r["weeks"]) if r["weeks"] in (2, 3, 4, 5, 6) else 2,
-                         format_func=lambda w: f"기준일부터 {w}주", key=f"rule_weeks_{rv}")
+    weeks = config_rules()["weeks"]
+    c4.text_input("메일에 담을 기간 (고정)", f"기준일부터 {weeks}주", disabled=True,
+                  help="앱 수집·자동 발송 모두 같은 기간을 씁니다. 바꾸려면 config.json의 rules.weeks를 고칩니다.")
 
     with st.expander("기준과 상관없이 항상 빼는 것"):
         st.markdown("- 창업자·기업 대상 **참가자 모집 공고** ('참가기업 모집', 'N기 모집' 등 — '청중평가단 모집', '참관 신청'은 남김)\n"

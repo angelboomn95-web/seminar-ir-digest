@@ -305,11 +305,65 @@ with tab_to:
                              hide_index=True, width="stretch")
 
 
+# ================================================================ 자동 발송 현황
+AUTO_DAY, AUTO_HOUR = 0, 9  # 월요일 09:00 (.github/workflows/weekly.yml의 cron과 같게)
+REPO = "hyeonwoo-dotcom/seminar-ir-digest"
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def last_auto_run() -> dict | None:
+    """GitHub Actions 최근 실행(공개 저장소라 로그인 없이 조회)."""
+    import requests
+    try:
+        r = requests.get(f"https://api.github.com/repos/{REPO}/actions/workflows/weekly.yml/runs?per_page=1", timeout=10)
+        runs = r.json().get("workflow_runs", [])
+        return runs[0] if runs else None
+    except Exception:
+        return None
+
+
+def auto_status() -> None:
+    now = datetime.now(KST)
+    days = (AUTO_DAY - now.weekday()) % 7
+    nxt = (now + timedelta(days=days)).replace(hour=AUTO_HOUR, minute=0, second=0, microsecond=0)
+    if nxt <= now:
+        nxt += timedelta(days=7)
+    people = st.session_state.get("people")
+    if people is None and SHEET_ID:
+        try:
+            people = st.session_state.people = rc.load(creds, SHEET_ID)
+        except Exception:
+            people = []
+    act = rc.active(people or [])
+    log = rc.load_log(creds, SHEET_ID, 1) if SHEET_ID else []
+    sender = log[0][1] if log and len(log[0]) > 1 else ""
+    names = ", ".join(p["이름"] or p["이메일"] for p in act) if act else "없음 (보내는 사람 본인에게만 갑니다)"
+    WDK = "월화수목금토일"
+    with st.container(border=True):
+        st.markdown(f"#### 📬 매주 **{WDK[AUTO_DAY]}요일 {AUTO_HOUR:02d}:00** 자동 발송")
+        c1, c2, c3 = st.columns(3)
+        c1.markdown(f"**받는 사람 {len(act)}명**  \n{names}")
+        c2.markdown(f"**다음 발송**  \n{nxt.month}/{nxt.day}({WDK[nxt.weekday()]}) {nxt:%H:%M} · 향후 "
+                    f"{config_rules()['weeks']}주 일정")
+        run = last_auto_run()
+        if run:
+            t = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00")).astimezone(KST)
+            res = {"success": "✅ 성공", "failure": "❌ 실패", "cancelled": "중단"}.get(run.get("conclusion") or "",
+                                                                                "⏳ 진행 중")
+            c3.markdown(f"**지난 실행**  \n{t.month}/{t.day} {t:%H:%M} · {res} · [기록 보기]({run['html_url']})")
+        else:
+            c3.markdown("**지난 실행**  \n아직 없음")
+        st.caption("받는 사람은 '④ 받는 사람'에서 '받기'를 체크하고 저장하면 다음 발송부터 반영됩니다. "
+                   "메일은 '세미나·IR' 캘린더 정리와 함께 나갑니다."
+                   + (f" 보내는 계정: {sender}" if sender else ""))
+
+
 # ================================================================ 보내기
 with tab_send:
+    auto_status()
     b = st.session_state.get("bundle")
     if not b:
-        st.info("② 행사 확인 탭에서 먼저 행사를 불러와 주세요.")
+        st.info("수동으로 보내거나 미리 보려면 ② 행사 확인 탭에서 먼저 행사를 불러와 주세요.")
     else:
         evs = included_events()
         today, s, e = _dt(b["today"]), _dt(b["winStart"]), _dt(b["winEnd"])
@@ -355,23 +409,6 @@ with tab_send:
                 st.success(f"신규 {res['created']}건 · 갱신 {res['updated']}건 · 삭제 {res['deleted']}건")
                 for t, err in res["failed"]:
                     st.warning(f"실패: {t} — {err[:150]}")
-        with st.expander("⚙️ 매주 자동 발송 설정 (GitHub Actions · 처음 한 번)"):
-            st.markdown(
-                "매주 **월요일 09:00**에 GitHub 서버가 수집 → '세미나·IR' 캘린더 정리 → 받는 사람에게 메일 발송을 자동으로 합니다. "
-                "메일은 아래 토큰 주인의 Gmail로 나갑니다.\n\n"
-                "1. GitHub 저장소 → **Settings → Secrets and variables → Actions → New repository secret**에서 세 개를 만듭니다.\n"
-                "   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Streamlit Secrets `[oauth]`의 값을 그대로 복사\n"
-                "   - `GOOGLE_REFRESH_TOKEN`: 아래 체크박스를 누르면 보이는 값\n"
-                "2. 저장소 **Actions → 주간 세미나·IR 메일 → Run workflow**에서 '나에게만(테스트)'로 한 번 돌려 확인합니다.\n\n"
-                "토큰은 내 메일·캘린더 권한이라 **채팅·문서에 붙여 넣지 말고** GitHub Secrets에만 넣으세요. "
-                "담당자가 바뀌면 새 담당자가 여기서 자기 토큰을 꺼내 바꿔 넣으면 됩니다.")
-            if st.checkbox(f"내 계정({me})의 자동 발송용 토큰을 보겠습니다", key="show_token"):
-                rt = getattr(creds, "refresh_token", None)
-                if rt:
-                    st.code(rt, language=None)
-                else:
-                    st.warning("토큰이 없습니다. 로그아웃 후 다시 로그인하면 생깁니다.")
-
         st.markdown("#### 메일 미리보기")
         st.iframe(html, height=900)
 
@@ -459,6 +496,17 @@ with tab_rule:
         st.session_state.sites = config_sites()
         st.session_state.rule_ver = st.session_state.get("rule_ver", 0) + 1
         st.rerun()
+
+
+    with st.expander("🔑 자동 발송 담당자 바꾸기 (관리자용)"):
+        st.caption("자동 메일은 GitHub 저장소 Secrets의 GOOGLE_REFRESH_TOKEN 주인 계정으로 나갑니다. "
+                   "담당자가 바뀌면 새 담당자가 로그인한 상태에서 아래 값을 꺼내 그 Secret을 바꿉니다(README '자동 발송 설정').")
+        if st.checkbox(f"내 계정({me})의 토큰 보기", key="show_token"):
+            rt = getattr(creds, "refresh_token", None)
+            if rt:
+                st.code(rt, language=None)
+            else:
+                st.warning("토큰이 없습니다. 로그아웃 후 다시 로그인하면 생깁니다.")
 
 
 # ================================================================ 사이트별 결과

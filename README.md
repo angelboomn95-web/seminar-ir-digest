@@ -63,7 +63,7 @@ python run_weekly.py --no-calendar  # 메일만
 로컬 PC에서 쓸 때(주간 자동 실행 `run_weekly.py` 포함): OAuth 클라이언트를 **데스크톱 앱** 유형으로 하나 더 만들어 `credentials.json`으로 저장 → `streamlit run app.py`로 한 번 로그인하면 `token.json`이 생긴다.
 
 ## 자동 발송 설정 (GitHub Actions)
-1. 앱 '⑤ 보내기' 맨 아래 **매주 자동 발송 설정**에서 내 토큰(`GOOGLE_REFRESH_TOKEN`) 확인.
+1. 앱 '① 수집 기준' 맨 아래 **🔑 자동 발송 담당자 바꾸기(관리자용)**에서 내 토큰(`GOOGLE_REFRESH_TOKEN`) 확인.
 2. GitHub 저장소 → Settings → Secrets and variables → Actions에 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`(Streamlit Secrets `[oauth]`와 같은 값), `GOOGLE_REFRESH_TOKEN` 등록.
 3. Actions → '주간 세미나·IR 메일' → Run workflow: `나에게만(테스트)` / `받는 사람 전체` / `발송 없이 확인`.
 - 메일은 토큰 주인의 Gmail로 나간다. **담당자가 바뀌면** 새 담당자가 앱에서 자기 토큰을 꺼내 `GOOGLE_REFRESH_TOKEN`을 교체.
@@ -99,3 +99,4 @@ python run_weekly.py --no-calendar  # 메일만
 - 2026-11-19: 받는 사람 시트 ID를 config.json에 고정(Secrets 미등록으로 앱 재시작 때마다 시트를 잊던 문제). 시트 ID는 비밀값이 아니며 시트는 공유 권한으로 보호.
 - 2026-11-23: 수집 기간을 2주로 통일(config.json `rules.weeks`, 앱에서는 고정 표시). GitHub Actions 매주 월 09:00 자동 발송 추가(테스트·전체·확인 모드), 앱에 자동 발송용 토큰 확인 화면 추가.
 - 2026-11-23: GitHub Secrets 등록·테스트 발송 성공(27건). 해외 서버에서 KIND·한국IR협의회 접속이 막혀 오류 사이트 일정은 캘린더에서 지우지 않게 함. 개인투자자 대상 행사 제외 키워드 7개 추가(ClubQ, 주식 모임, 독서모임, 북콘서트, 실전투자, 장기투자, 위대한 투자자) → 24건.
+- 2026-11-23: '⑤ 보내기' 맨 위를 자동 발송 현황(요일·시간, 받는 사람 명단, 다음 발송, 지난 실행 결과)으로 변경. 토큰 설정 안내는 '수집 기준' 맨 아래 관리자용으로 이동.

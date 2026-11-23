@@ -355,9 +355,6 @@ with tab_send:
                 st.success(f"신규 {res['created']}건 · 갱신 {res['updated']}건 · 삭제 {res['deleted']}건")
                 for t, err in res["failed"]:
                     st.warning(f"실패: {t} — {err[:150]}")
-        st.markdown("#### 메일 미리보기")
-        st.iframe(html, height=900)
-
         with st.expander("⚙️ 매주 자동 발송 설정 (GitHub Actions · 처음 한 번)"):
             st.markdown(
                 "매주 **월요일 09:00**에 GitHub 서버가 수집 → '세미나·IR' 캘린더 정리 → 받는 사람에게 메일 발송을 자동으로 합니다. "
@@ -375,6 +372,8 @@ with tab_send:
                 else:
                     st.warning("토큰이 없습니다. 로그아웃 후 다시 로그인하면 생깁니다.")
 
+        st.markdown("#### 메일 미리보기")
+        st.iframe(html, height=900)
 
 # ================================================================ 수집 기준
 def _split(s: str) -> list[str]:

@@ -349,7 +349,7 @@ with tab_send:
             if st.button("'세미나·IR' 캘린더에 등록", width="stretch"):
                 with st.spinner("등록하는 중…"):
                     res = sync_calendar(creds, evs, CALENDAR_ID or st.session_state.get("calendar_id"),
-                                         prune_from=s)
+                                         prune_from=s, keep_sites={r["site"] for r in b.get("report", []) if r.get("error")})
                 st.session_state.calendar_id = res["calendar_id"]
                 save_local_settings(calendar_id=res["calendar_id"])
                 st.success(f"신규 {res['created']}건 · 갱신 {res['updated']}건 · 삭제 {res['deleted']}건")

@@ -96,7 +96,8 @@ def main() -> int:
             log("캘린더 등록 건너뜀")
         else:
             win_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
-            res = sync_calendar(require_creds(), kept, prune_from=win_start)
+            res = sync_calendar(require_creds(), kept, prune_from=win_start,
+                                keep_sites={r['site'] for r in report if r['error']})
             log(f"캘린더: 신규 {res['created']} / 갱신 {res['updated']} / 삭제 {res['deleted']} / 실패 {len(res['failed'])}")
             for t, e in res["failed"]:
                 log(f"  [실패] {t}: {e[:200]}")

@@ -82,7 +82,7 @@ def gcal_body(ev: dict) -> dict:
         "source": {"title": ev.get("source") or "신청 링크", "url": ev["url"]},
         "transparency": "transparent",  # 일정이 '바쁨'으로 잡히지 않게
         "status": "confirmed",
-        "extendedProperties": {"private": {"source": APP_TAG}},
+        "extendedProperties": {"private": {"source": APP_TAG, "site": (ev.get("source") or "")[:100]}},
         **when,
     }
 
@@ -93,9 +93,10 @@ def _ours(item: dict) -> bool:
 
 
 def sync_calendar(creds, events: list[dict], calendar_id: str | None = None,
-                  prune_from: datetime | None = None) -> dict:
+                  prune_from: datetime | None = None, keep_sites: set[str] | None = None) -> dict:
     """캘린더를 이번 수집 결과와 맞춘다.
     prune_from을 주면 그 시각 이후 일정 중 이번 목록에 없는 것(이 앱이 넣은 것만)을 지운다.
+    keep_sites(이번에 수집 오류가 난 사이트)에서 온 일정은 목록에 없어도 지우지 않는다.
     반환: {'calendar_id', 'created', 'updated', 'deleted', 'failed': [(제목, 오류)]}"""
     cal = ensure_calendar(creds, calendar_id)
     api = build("calendar", "v3", credentials=creds, cache_discovery=False).events()
@@ -125,6 +126,9 @@ def sync_calendar(creds, events: list[dict], calendar_id: str | None = None,
                          maxResults=250, pageToken=page).execute()
             for it in r.get("items", []):
                 if it.get("status") == "cancelled" or it["id"] in keep or not _ours(it):
+                    continue
+                site = ((it.get("extendedProperties") or {}).get("private") or {}).get("site")
+                if keep_sites and site in keep_sites:
                     continue
                 try:
                     api.delete(calendarId=cal, eventId=it["id"]).execute()

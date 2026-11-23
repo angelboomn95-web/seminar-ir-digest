@@ -129,7 +129,7 @@ def run(today: datetime, rules: dict | None = None, sites: list[dict] | None = N
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     cfg["sites"] = merge_sites(cfg["sites"], sites)
     rules = {**cfg["rules"], **(rules or {})}
-    weeks = int(rules.get("weeks", 4))
+    weeks = int(cfg["rules"].get("weeks", 2))  # 기간은 config.json으로 통일(앱·시트 값은 쓰지 않음)
     win_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
     win_end = win_start + timedelta(days=7 * weeks)
     regions = [r for r in rules.get("regions", []) if r != "온라인"]

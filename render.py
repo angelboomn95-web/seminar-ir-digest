@@ -27,7 +27,18 @@ def _md(dt: datetime) -> str:
     return f"{dt.month}.{dt.day} ({WD[dt.weekday()]})"
 
 
-def _item(ev: dict) -> str:
+C_URGENT = "#d92d20"
+URGENT_DAYS = 3  # 신청 마감이 이 일수 안이면 메일에서 빨간 'D-n'으로 강조
+
+
+def _dday(dl: datetime, today: datetime) -> str | None:
+    n = (dl.date() - today.date()).days
+    if 0 <= n <= URGENT_DAYS:
+        return "오늘 마감" if n == 0 else f"마감 D-{n}"
+    return None
+
+
+def _item(ev: dict, today: datetime) -> str:
     s = _d(ev["start"])
     when = _md(s) + (f" {s:%H:%M}" if ev.get("has_time") and (s.hour or s.minute) else "")
     dl = _d(ev.get("deadline"))
@@ -35,12 +46,15 @@ def _item(ev: dict) -> str:
     place = "온라인" if ev.get("online") else (ev.get("place") or "장소 확인 필요")
     price = ev.get("price") or "비용 확인 필요"
     summary = (ev.get("summary") or "").strip()
+    urgent = _dday(dl, today) if dl else None
     meta = [f"📍 {escape(place)}", f"💳 {escape(price)}"]
     if dl:
-        meta.append(f"⏰ 신청마감 {_md(dl)}")
+        meta.append(f'<b style="color:{C_URGENT};">⏰ 신청마감 {_md(dl)}</b>' if urgent else f"⏰ 신청마감 {_md(dl)}")
+    badge = (f'<span style="background:{C_URGENT};color:#fff;font-size:11px;font-weight:bold;'
+             f'padding:1px 6px;border-radius:3px;margin-left:6px;">{urgent}</span>') if urgent else ""
     return f"""
 <tr><td style="padding:14px 0;border-bottom:1px solid {C_LINE};">
-  <div style="font-size:12px;color:{C_ACCENT};font-weight:bold;">{escape(when)}</div>
+  <div style="font-size:12px;color:{C_ACCENT};font-weight:bold;">{escape(when)}{badge}</div>
   <div style="font-size:15px;font-weight:bold;margin:3px 0 2px;line-height:1.4;">
     <a href="{escape(ev['url'])}" style="color:{C_TEXT};text-decoration:none;">{escape(ev['title'])}</a></div>
   <div style="font-size:12px;color:{C_MUTED};">{escape(host)}{' | ' + escape(summary) if summary else ''}</div>
@@ -88,7 +102,7 @@ def render_mail(events: list[dict], today: datetime, start: datetime, end: datet
         body.append(f"""
 <tr><td style="padding:22px 0 4px;"><div style="font-size:13px;font-weight:bold;color:{C_TEXT};
   border-left:3px solid {C_ACCENT};padding-left:8px;">{label} <span style="color:{C_MUTED};font-weight:normal;">({len(items)}건)</span></div></td></tr>""")
-        body.extend(_item(e) for e in items)
+        body.extend(_item(e, today) for e in items)
     if not events:
         body.append(f'<tr><td style="padding:28px 0;color:{C_MUTED};">이번 기간에 조건에 맞는 행사가 없습니다.</td></tr>')
     if notices:

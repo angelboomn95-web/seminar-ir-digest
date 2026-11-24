@@ -1,6 +1,6 @@
 # 매주 월요일 09:00(KST) 자동 실행: 수집 → '세미나·IR' 캘린더 정리 → 받는 사람에게 메일 발송.
 # 필요한 저장소 Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
-#   (토큰은 앱 '⑤ 보내기' 탭 맨 아래 '매주 자동 발송 설정'에서 확인)
+#   (토큰은 앱 '① 수집 기준' 탭 맨 아래 '자동 발송 담당자 바꾸기 (관리자용)'에서 확인)
 # 저장소가 공개라 실행 기록도 공개된다. run_weekly.py는 건수·사이트명만 남기고 이메일 주소는 남기지 않는다.
 name: 주간 세미나·IR 메일
 
@@ -45,7 +45,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: |
           if [ -z "$GOOGLE_REFRESH_TOKEN" ]; then
-            echo "::error::저장소 Secrets에 GOOGLE_REFRESH_TOKEN이 없습니다. 앱 '⑤ 보내기 → 매주 자동 발송 설정'을 참고하세요."
+            echo "::error::저장소 Secrets에 GOOGLE_REFRESH_TOKEN이 없습니다. 앱 '① 수집 기준 → 자동 발송 담당자 바꾸기'를 참고하세요."
             exit 1
           fi
           case "$MODE" in
@@ -54,3 +54,17 @@ jobs:
             *) ARGS="" ;;   # 정기 실행(월요일)과 '받는 사람 전체'
           esac
           python run_weekly.py $ARGS
+
+  # GitHub는 60일간 저장소 변경이 없으면 예약 실행을 자동으로 멈춘다.
+  # 매주 이 워크플로를 '사용(enable)' 상태로 다시 표시해 그 타이머를 초기화한다.
+  # 메일 발송이 실패해도 돌도록 별도 job으로 둔다.
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: 자동 정지 방지
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/weekly.yml/enable" && echo "예약 실행 유지 완료"
